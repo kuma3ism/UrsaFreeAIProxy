@@ -8,40 +8,42 @@ public class RateLimiter
 
     public RateLimiter(int maxRequestsPerMinute = 5)
     {
+        if (maxRequestsPerMinute <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxRequestsPerMinute), "Rate limit must be greater than zero");
+
         _maxRequestsPerMinute = maxRequestsPerMinute;
     }
 
-    public async Task WaitForSlotAsync()
+    public async Task WaitForSlotAsync(CancellationToken cancellationToken = default)
     {
-        lock (_lock)
+        while (true)
         {
-            var now = DateTime.UtcNow;
-            var oneMinuteAgo = now.AddMinutes(-1);
+            TimeSpan waitTime;
 
-            // Remove timestamps older than 1 minute
-            while (_requestTimestamps.Count > 0 && _requestTimestamps.Peek() < oneMinuteAgo)
+            lock (_lock)
             {
-                _requestTimestamps.Dequeue();
+                var now = DateTime.UtcNow;
+                RemoveExpiredRequests(now);
+
+                if (_requestTimestamps.Count < _maxRequestsPerMinute)
+                {
+                    _requestTimestamps.Enqueue(now);
+                    return;
+                }
+
+                var oldestRequest = _requestTimestamps.Peek();
+                waitTime = oldestRequest.AddMinutes(1) - now;
             }
 
-            // If we've hit the limit, wait
-            if (_requestTimestamps.Count >= _maxRequestsPerMinute)
+            if (waitTime > TimeSpan.Zero)
             {
-                var oldestRequest = _requestTimestamps.Peek();
-                var waitTime = oldestRequest.AddMinutes(1) - now;
-                if (waitTime.TotalMilliseconds > 0)
-                {
-                    Thread.Sleep(waitTime);
-                }
-                _requestTimestamps.Enqueue(DateTime.UtcNow);
+                await Task.Delay(waitTime, cancellationToken);
             }
             else
             {
-                _requestTimestamps.Enqueue(now);
+                await Task.Yield();
             }
         }
-
-        await Task.CompletedTask;
     }
 
     public int GetRequestsInLastMinute()
@@ -49,8 +51,17 @@ public class RateLimiter
         lock (_lock)
         {
             var now = DateTime.UtcNow;
-            var oneMinuteAgo = now.AddMinutes(-1);
-            return _requestTimestamps.Count(t => t >= oneMinuteAgo);
+            RemoveExpiredRequests(now);
+            return _requestTimestamps.Count;
+        }
+    }
+
+    private void RemoveExpiredRequests(DateTime now)
+    {
+        var oneMinuteAgo = now.AddMinutes(-1);
+        while (_requestTimestamps.Count > 0 && _requestTimestamps.Peek() < oneMinuteAgo)
+        {
+            _requestTimestamps.Dequeue();
         }
     }
 }
