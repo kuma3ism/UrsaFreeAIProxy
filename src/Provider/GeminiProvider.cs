@@ -86,7 +86,12 @@ public class GeminiResponse
 
 public class GeminiContent
 {
-    public GeminiPart[]? Content { get; set; }
+    public GeminiContentBody? Content { get; set; }
+}
+
+public class GeminiContentBody
+{
+    public GeminiPart[]? Parts { get; set; }
 }
 
 public class GeminiPart

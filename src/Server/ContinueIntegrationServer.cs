@@ -26,7 +26,7 @@ public class ContinueIntegrationServer
     public async Task StartAsync()
     {
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
+        _listener.Prefixes.Add($"http://+:{_port}/");
         _listener.Start();
         Console.WriteLine($"🚀 Server started on http://localhost:{_port}");
         Console.WriteLine($"📝 Model: {_provider.GetModel()}");
@@ -50,24 +50,20 @@ public class ContinueIntegrationServer
     {
         try
         {
-            // OpenAI互換エンドポイント
             if (context.Request.HttpMethod == "POST" && context.Request.Url?.PathAndQuery == "/v1/chat/completions")
             {
                 await HandleChatCompletionsAsync(context);
             }
-            // 独自エンドポイント（後方互換性）
             else if (context.Request.HttpMethod == "POST" && context.Request.Url?.PathAndQuery == "/chat")
             {
                 await HandleChatAsync(context);
             }
-            // ヘルスチェック
             else if (context.Request.Url?.PathAndQuery == "/health")
             {
                 context.Response.StatusCode = 200;
                 context.Response.ContentType = "application/json";
                 await WriteResponseAsync(context, new { status = "ok", model = _provider.GetModel() });
             }
-            // モデル情報
             else if (context.Request.Url?.PathAndQuery == "/v1/models")
             {
                 context.Response.StatusCode = 200;
@@ -116,65 +112,112 @@ public class ContinueIntegrationServer
             context.Response.StatusCode = 400;
             await WriteResponseAsync(context, new
             {
-                error = new
-                {
-                    message = "Messages are required",
-                    type = "invalid_request_error"
-                }
+                error = new { message = "Messages are required", type = "invalid_request_error" }
             });
             return;
         }
 
-        // 最後のメッセージを取得
         var lastMessage = request.Messages[^1];
         var userMessage = lastMessage.Content ?? string.Empty;
 
         try
         {
             var geminiResponse = await _provider.SendMessageAsync(userMessage);
-            var assistantText = geminiResponse.Candidates?.FirstOrDefault()?.Content?.FirstOrDefault()?.Text ?? "No response";
+            var candidate = geminiResponse.Candidates?.FirstOrDefault();
+            var part = candidate?.Content?.Parts?.FirstOrDefault();
+            var assistantText = part?.Text ?? "No response";
 
-            var response = new OpenAIChatResponse
+            var isStream = request.Stream == true;
+
+            if (isStream)
             {
-                Id = Guid.NewGuid().ToString("N")[..24],
-                Object = "chat.completion",
-                Created = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                Model = _provider.GetModel(),
-                Choices = new[]
-                {
-                    new OpenAIChoice
-                    {
-                        Index = 0,
-                        Message = new OpenAIMessage
-                        {
-                            Role = "assistant",
-                            Content = assistantText
-                        },
-                        FinishReason = "stop"
-                    }
-                },
-                Usage = new OpenAIUsage
-                {
-                    PromptTokens = geminiResponse.UsageMetadata?.PromptTokenCount ?? 0,
-                    CompletionTokens = geminiResponse.UsageMetadata?.CandidatesTokenCount ?? 0,
-                    TotalTokens = geminiResponse.UsageMetadata?.TotalTokenCount ?? 0
-                }
-            };
+                // SSEストリーミングレスポンス
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "text/event-stream";
+                context.Response.Headers.Add("Cache-Control", "no-cache");
+                context.Response.Headers.Add("X-Accel-Buffering", "no");
 
-            context.Response.StatusCode = 200;
-            context.Response.ContentType = "application/json";
-            await WriteResponseAsync(context, response);
+                var id = Guid.NewGuid().ToString("N")[..24];
+                var created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+                // 本文チャンク
+                var chunk = JsonSerializer.Serialize(new
+                {
+                    id,
+                    @object = "chat.completion.chunk",
+                    created,
+                    model = _provider.GetModel(),
+                    choices = new[]
+                    {
+                        new
+                        {
+                            index = 0,
+                            delta = new { role = "assistant", content = assistantText },
+                            finish_reason = (string?)null
+                        }
+                    }
+                }, _jsonOptions);
+
+                // 終了チャンク
+                var doneChunk = JsonSerializer.Serialize(new
+                {
+                    id,
+                    @object = "chat.completion.chunk",
+                    created,
+                    model = _provider.GetModel(),
+                    choices = new[]
+                    {
+                        new
+                        {
+                            index = 0,
+                            delta = new { },
+                            finish_reason = "stop"
+                        }
+                    }
+                }, _jsonOptions);
+
+                var sseBody = $"data: {chunk}\n\ndata: {doneChunk}\n\ndata: [DONE]\n\n";
+                var buffer = System.Text.Encoding.UTF8.GetBytes(sseBody);
+                context.Response.ContentLength64 = buffer.Length;
+                await context.Response.OutputStream.WriteAsync(buffer);
+            }
+            else
+            {
+                // 通常レスポンス
+                var response = new OpenAIChatResponse
+                {
+                    Id = Guid.NewGuid().ToString("N")[..24],
+                    Object = "chat.completion",
+                    Created = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    Model = _provider.GetModel(),
+                    Choices = new[]
+                    {
+                        new OpenAIChoice
+                        {
+                            Index = 0,
+                            Message = new OpenAIMessage { Role = "assistant", Content = assistantText },
+                            FinishReason = "stop"
+                        }
+                    },
+                    Usage = new OpenAIUsage
+                    {
+                        PromptTokens = geminiResponse.UsageMetadata?.PromptTokenCount ?? 0,
+                        CompletionTokens = geminiResponse.UsageMetadata?.CandidatesTokenCount ?? 0,
+                        TotalTokens = geminiResponse.UsageMetadata?.TotalTokenCount ?? 0
+                    }
+                };
+
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "application/json";
+                await WriteResponseAsync(context, response);
+            }
         }
         catch (Exception ex)
         {
             context.Response.StatusCode = 500;
             await WriteResponseAsync(context, new
             {
-                error = new
-                {
-                    message = $"Failed to get response: {ex.Message}",
-                    type = "server_error"
-                }
+                error = new { message = $"Failed to get response: {ex.Message}", type = "server_error" }
             });
         }
     }
@@ -193,7 +236,7 @@ public class ContinueIntegrationServer
         }
 
         var response = await _provider.SendMessageAsync(request.Message);
-        var text = response.Candidates?.FirstOrDefault()?.Content?.FirstOrDefault()?.Text ?? "No response";
+        var text = response.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? "No response";
 
         context.Response.StatusCode = 200;
         context.Response.ContentType = "application/json";
@@ -228,6 +271,9 @@ public class OpenAIChatRequest
 
     [JsonPropertyName("max_tokens")]
     public int? MaxTokens { get; set; }
+
+    [JsonPropertyName("stream")]
+    public bool? Stream { get; set; }
 }
 
 // OpenAI互換レスポンス
@@ -252,7 +298,6 @@ public class OpenAIChatResponse
     public OpenAIUsage? Usage { get; set; }
 }
 
-// OpenAI互換チョイス
 public class OpenAIChoice
 {
     [JsonPropertyName("index")]
@@ -265,7 +310,6 @@ public class OpenAIChoice
     public string? FinishReason { get; set; }
 }
 
-// OpenAI互換メッセージ
 public class OpenAIMessage
 {
     [JsonPropertyName("role")]
@@ -275,7 +319,6 @@ public class OpenAIMessage
     public string? Content { get; set; }
 }
 
-// OpenAI互換使用量情報
 public class OpenAIUsage
 {
     [JsonPropertyName("prompt_tokens")]
@@ -288,7 +331,6 @@ public class OpenAIUsage
     public int TotalTokens { get; set; }
 }
 
-// 独自フォーマット（後方互換性）
 public class ChatRequest
 {
     public string? Message { get; set; }
