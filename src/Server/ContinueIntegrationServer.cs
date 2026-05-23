@@ -26,7 +26,7 @@ public class ContinueIntegrationServer
     public async Task StartAsync()
     {
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://+:{_port}/");
+        _listener.Prefixes.Add($"http://localhost:{_port}/");
         _listener.Start();
         Console.WriteLine($"🚀 Server started on http://localhost:{_port}");
         Console.WriteLine($"📝 Model: {_provider.GetModel()}");
@@ -117,8 +117,7 @@ public class ContinueIntegrationServer
             return;
         }
 
-        var lastMessage = request.Messages[^1];
-        var userMessage = lastMessage.Content ?? string.Empty;
+        var userMessage = BuildConversationPrompt(request.Messages);
 
         try
         {
@@ -241,6 +240,20 @@ public class ContinueIntegrationServer
         context.Response.StatusCode = 200;
         context.Response.ContentType = "application/json";
         await WriteResponseAsync(context, new { response = text, rateLimit = _provider.GetCurrentRateLimit() });
+    }
+
+    private static string BuildConversationPrompt(IEnumerable<OpenAIMessage> messages)
+    {
+        var formattedMessages = messages
+            .Where(message => !string.IsNullOrWhiteSpace(message.Content))
+            .Select(message => $"{NormalizeRole(message.Role)}: {message.Content}");
+
+        return string.Join(Environment.NewLine, formattedMessages);
+    }
+
+    private static string NormalizeRole(string? role)
+    {
+        return string.IsNullOrWhiteSpace(role) ? "user" : role.Trim().ToLowerInvariant();
     }
 
     private async Task WriteResponseAsync(HttpListenerContext context, object data)
