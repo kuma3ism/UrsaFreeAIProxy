@@ -57,7 +57,7 @@ public class GeminiProvider
             response.EnsureSuccessStatusCode();
             _logger.LogInfo($"Gemini API call successful ({stopwatch.ElapsedMilliseconds}ms)");
 
-            var result = await response.Content.ReadAsAsync<GeminiResponse>(cancellationToken);
+			var result = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: cancellationToken);
             return result ?? throw new InvalidOperationException("Failed to parse response");
         }
         catch (HttpRequestException ex)
