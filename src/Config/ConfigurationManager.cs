@@ -32,13 +32,36 @@ public class ConfigurationManager
     public static GeminiConfig ToGeminiConfig(AppSettings appSettings)
     {
         var geminiSettings = appSettings.Gemini ?? new GeminiSettings();
-        var apiKey = geminiSettings.ApiKey ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY");
 
         return new GeminiConfig
         {
-            ApiKey = apiKey,
-            Model = geminiSettings.Model,
-            MaxRequestsPerMinute = geminiSettings.MaxRequestsPerMinute
+            ApiKey = GetEnvironmentValueOrDefault("GEMINI_API_KEY", geminiSettings.ApiKey),
+            Model = GetEnvironmentValueOrDefault("GEMINI_MODEL", geminiSettings.Model) ?? new GeminiSettings().Model,
+            MaxRequestsPerMinute = GetPositiveIntEnvironmentValueOrDefault(
+                "GEMINI_MAX_REQUESTS_PER_MINUTE",
+                geminiSettings.MaxRequestsPerMinute)
         };
+    }
+
+    public static int GetServerPort(AppSettings appSettings)
+    {
+        return GetPositiveIntEnvironmentValueOrDefault("SERVER_PORT", appSettings.Server?.Port ?? 8080);
+    }
+
+    private static string? GetEnvironmentValueOrDefault(string variableName, string? defaultValue)
+    {
+        var environmentValue = Environment.GetEnvironmentVariable(variableName);
+        return string.IsNullOrWhiteSpace(environmentValue) ? defaultValue : environmentValue;
+    }
+
+    private static int GetPositiveIntEnvironmentValueOrDefault(string variableName, int defaultValue)
+    {
+        var environmentValue = Environment.GetEnvironmentVariable(variableName);
+        if (int.TryParse(environmentValue, out var parsedValue) && parsedValue > 0)
+        {
+            return parsedValue;
+        }
+
+        return defaultValue;
     }
 }
