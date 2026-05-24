@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace JeminiLateUse.Logging;
+namespace UrsaFreeAIProxy.Logging;
 
 public interface ILogger
 {

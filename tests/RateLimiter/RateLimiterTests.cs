@@ -1,7 +1,7 @@
-using JeminiLateUse.RateLimit;
+using UrsaFreeAIProxy.RateLimit;
 using Xunit;
 
-namespace JeminiLateUse.Tests.RateLimiter;
+namespace UrsaFreeAIProxy.Tests.RateLimiter;
 
 public class RateLimiterTests
 {
@@ -9,7 +9,7 @@ public class RateLimiterTests
     public async Task WaitForSlotAsync_WithinLimit_DoesNotBlock()
     {
         // Arrange
-        var limiter = new global::JeminiLateUse.RateLimit.RateLimiter(5);
+        var limiter = new global::UrsaFreeAIProxy.RateLimit.RateLimiter(5);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         // Act
@@ -28,7 +28,7 @@ public class RateLimiterTests
     public async Task WaitForSlotAsync_ExceedsLimit_Blocks()
     {
         // Arrange
-        var limiter = new global::JeminiLateUse.RateLimit.RateLimiter(2);
+        var limiter = new global::UrsaFreeAIProxy.RateLimit.RateLimiter(2);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         // Act - 最初の2回はすぐ
@@ -48,7 +48,7 @@ public class RateLimiterTests
     public void GetRequestsInLastMinute_ReturnsCorrectCount()
     {
         // Arrange
-        var limiter = new global::JeminiLateUse.RateLimit.RateLimiter(5);
+        var limiter = new global::UrsaFreeAIProxy.RateLimit.RateLimiter(5);
 
         // Act
         for (int i = 0; i < 3; i++)
@@ -65,7 +65,7 @@ public class RateLimiterTests
     public void GetRequestsInLastMinute_OnlyCountsRecentRequests()
     {
         // Arrange
-        var limiter = new global::JeminiLateUse.RateLimit.RateLimiter(5);
+        var limiter = new global::UrsaFreeAIProxy.RateLimit.RateLimiter(5);
 
         // Act
         limiter.WaitForSlotAsync().GetAwaiter().GetResult();

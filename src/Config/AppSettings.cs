@@ -1,4 +1,4 @@
-namespace JeminiLateUse.Config;
+namespace UrsaFreeAIProxy.Config;
 
 public class AppSettings
 {

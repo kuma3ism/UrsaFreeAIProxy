@@ -1,7 +1,7 @@
 using System.Text.Json;
-using JeminiLateUse.Logging;
+using UrsaFreeAIProxy.Logging;
 
-namespace JeminiLateUse.Config;
+namespace UrsaFreeAIProxy.Config;
 
 public class ConfigurationManager
 {

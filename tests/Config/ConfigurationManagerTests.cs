@@ -1,7 +1,7 @@
-using JeminiLateUse.Config;
+using UrsaFreeAIProxy.Config;
 using Xunit;
 
-namespace JeminiLateUse.Tests.Config;
+namespace UrsaFreeAIProxy.Tests.Config;
 
 public class ConfigurationManagerTests : IDisposable
 {

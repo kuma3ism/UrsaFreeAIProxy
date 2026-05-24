@@ -1,4 +1,4 @@
-namespace JeminiLateUse.RateLimit;
+namespace UrsaFreeAIProxy.RateLimit;
 
 public class RateLimiter
 {
