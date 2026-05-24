@@ -34,7 +34,7 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 
 ### 前提
 
-- .NET 8.0 以上
+- .NET 8.0 以上（Mac、Windows）
 - Gemini API キー（[Google AI Studio](https://aistudio.google.com) で無料取得）
 
 ### 1. appsettings.json を編集
