@@ -26,7 +26,7 @@ public class ContinueIntegrationServer
     public async Task StartAsync()
     {
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
+        _listener.Prefixes.Add($"http://+:{_port}/");
         _listener.Start();
         Console.WriteLine($"🚀 Server started on http://localhost:{_port}");
         Console.WriteLine($"📝 Model: {_provider.GetModel()}");
@@ -117,11 +117,14 @@ public class ContinueIntegrationServer
             return;
         }
 
-        var userMessage = BuildConversationPrompt(request.Messages);
+        // OpenAIメッセージをGeminiChatMessageに変換してマルチターンで送信
+        var geminiMessages = request.Messages
+            .Where(m => !string.IsNullOrWhiteSpace(m.Content))
+            .Select(m => new GeminiChatMessage(m.Role ?? "user", m.Content!));
 
         try
         {
-            var geminiResponse = await _provider.SendMessageAsync(userMessage);
+            var geminiResponse = await _provider.SendMessagesAsync(geminiMessages);
             var candidate = geminiResponse.Candidates?.FirstOrDefault();
             var part = candidate?.Content?.Parts?.FirstOrDefault();
             var assistantText = part?.Text ?? "No response";
@@ -130,7 +133,6 @@ public class ContinueIntegrationServer
 
             if (isStream)
             {
-                // SSEストリーミングレスポンス
                 context.Response.StatusCode = 200;
                 context.Response.ContentType = "text/event-stream";
                 context.Response.Headers.Add("Cache-Control", "no-cache");
@@ -139,7 +141,6 @@ public class ContinueIntegrationServer
                 var id = Guid.NewGuid().ToString("N")[..24];
                 var created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                // 本文チャンク
                 var chunk = JsonSerializer.Serialize(new
                 {
                     id,
@@ -157,7 +158,6 @@ public class ContinueIntegrationServer
                     }
                 }, _jsonOptions);
 
-                // 終了チャンク
                 var doneChunk = JsonSerializer.Serialize(new
                 {
                     id,
@@ -182,7 +182,6 @@ public class ContinueIntegrationServer
             }
             else
             {
-                // 通常レスポンス
                 var response = new OpenAIChatResponse
                 {
                     Id = Guid.NewGuid().ToString("N")[..24],
@@ -242,20 +241,6 @@ public class ContinueIntegrationServer
         await WriteResponseAsync(context, new { response = text, rateLimit = _provider.GetCurrentRateLimit() });
     }
 
-    private static string BuildConversationPrompt(IEnumerable<OpenAIMessage> messages)
-    {
-        var formattedMessages = messages
-            .Where(message => !string.IsNullOrWhiteSpace(message.Content))
-            .Select(message => $"{NormalizeRole(message.Role)}: {message.Content}");
-
-        return string.Join(Environment.NewLine, formattedMessages);
-    }
-
-    private static string NormalizeRole(string? role)
-    {
-        return string.IsNullOrWhiteSpace(role) ? "user" : role.Trim().ToLowerInvariant();
-    }
-
     private async Task WriteResponseAsync(HttpListenerContext context, object data)
     {
         var json = JsonSerializer.Serialize(data, _jsonOptions);
@@ -270,7 +255,6 @@ public class ContinueIntegrationServer
     }
 }
 
-// OpenAI互換リクエスト
 public class OpenAIChatRequest
 {
     [JsonPropertyName("messages")]
@@ -289,7 +273,6 @@ public class OpenAIChatRequest
     public bool? Stream { get; set; }
 }
 
-// OpenAI互換レスポンス
 public class OpenAIChatResponse
 {
     [JsonPropertyName("id")]
