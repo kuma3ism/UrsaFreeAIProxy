@@ -33,9 +33,17 @@ public class ConfigurationManager
     {
         var geminiSettings = appSettings.Gemini ?? new GeminiSettings();
 
+        // 有効なAPIキー一覧を取得（設定ファイル由来）
+        var apiKeys = geminiSettings.GetEffectiveApiKeys();
+
+        // 環境変数 GEMINI_API_KEY が設定されていれば先頭に追加
+        var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        if (!string.IsNullOrWhiteSpace(envKey) && !apiKeys.Contains(envKey))
+            apiKeys.Insert(0, envKey);
+
         return new GeminiConfig
         {
-            ApiKey = GetEnvironmentValueOrDefault("GEMINI_API_KEY", geminiSettings.ApiKey),
+            ApiKeys = apiKeys,
             Model = GetEnvironmentValueOrDefault("GEMINI_MODEL", geminiSettings.Model) ?? new GeminiSettings().Model,
             MaxRequestsPerMinute = GetPositiveIntEnvironmentValueOrDefault(
                 "GEMINI_MAX_REQUESTS_PER_MINUTE",
