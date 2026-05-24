@@ -27,6 +27,11 @@ if (isDevelopment)
 // Gemini設定を作成
 var config = ConfigurationManager.ToGeminiConfig(appSettings);
 var serverPort = ConfigurationManager.GetServerPort(appSettings);
+var cliPort = GetPortFromArgs(args);
+if (cliPort.HasValue)
+{
+    serverPort = cliPort.Value;
+}
 
 // APIキーの検証
 if (config.ApiKeys == null || !config.ApiKeys.Any())
@@ -58,4 +63,37 @@ catch (Exception ex)
 {
     logger.LogError($"Failed to start server", ex);
     Environment.Exit(1);
+}
+
+static int? GetPortFromArgs(string[] args)
+{
+    for (int i = 0; i < args.Length; i++)
+    {
+        var arg = args[i];
+        string? portValue = null;
+
+        if (arg == "--port" || arg == "-p")
+        {
+            portValue = i + 1 < args.Length ? args[i + 1] : "";
+        }
+        else if (arg.StartsWith("--port=", StringComparison.Ordinal))
+        {
+            portValue = arg["--port=".Length..];
+        }
+
+        if (portValue == null)
+        {
+            continue;
+        }
+
+        if (int.TryParse(portValue, out var port) && port > 0 && port <= 65535)
+        {
+            return port;
+        }
+
+        Console.Error.WriteLine($"Invalid port: {portValue}");
+        Environment.Exit(1);
+    }
+
+    return null;
 }

@@ -63,6 +63,12 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 dotnet run --project src/JeminiLateUse.csproj
 ```
 
+8080 が使用中の場合は起動時にポートを指定できる。
+
+```bash
+dotnet run --project src/JeminiLateUse.csproj -- --port 9090
+```
+
 ```
 🚀 Server started on http://localhost:8080
 📝 Model: gemini-3.5-flash
