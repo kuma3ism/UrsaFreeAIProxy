@@ -2,6 +2,8 @@
 
 Gemini の無料 API キーを複数使って、Continue を無制限（登録するAPIの数に依存）に使い続けるためのローカルプロキシ。
 
+１つのアカウントで複数のプロジェクトを作成してそれぞれAPIキーを発行してください
+https://aistudio.google.com/api-keys
 ---
 
 ## これは何？
