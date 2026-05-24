@@ -1,4 +1,4 @@
-# JeminiLateUse
+# UrsaFreeAIProxy
 
 Gemini 3.5 Flash Free版のレート制限（1分5回）に対応したローカルプロバイダー
 
