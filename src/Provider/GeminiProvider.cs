@@ -18,6 +18,10 @@ public class GeminiProvider
     private const int RetryWaitSeconds = 60;
     private const int MaxRetries = 3;
 
+    // ラウンドロビン用カウンター
+    private int _keyIndex = 0;
+    private readonly object _keyLock = new();
+
     public GeminiProvider(GeminiConfig config)
     {
         config.Validate();
@@ -25,6 +29,18 @@ public class GeminiProvider
         _rateLimiter = new RateLimiter(config.MaxRequestsPerMinute);
         _httpClient = new HttpClient();
         _logger = LoggerProvider.GetLogger(nameof(GeminiProvider));
+        _logger.LogInfo($"Loaded {_config.ApiKeys.Count} API key(s)");
+    }
+
+    /// <summary>ラウンドロビンで次のAPIキーを取得する</summary>
+    private string GetNextApiKey()
+    {
+        lock (_keyLock)
+        {
+            var key = _config.ApiKeys[_keyIndex % _config.ApiKeys.Count];
+            _keyIndex++;
+            return key;
+        }
     }
 
     /// <summary>マルチターン会話を正式なGemini形式で送信する</summary>
@@ -88,13 +104,15 @@ public class GeminiProvider
         await _rateLimiter.WaitForSlotAsync(cancellationToken);
         _logger.LogDebug("Rate limit slot acquired");
 
-        var url = $"{BaseUrl}/{_config.Model}:generateContent?key={_config.ApiKey}";
-
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
+            var apiKey = GetNextApiKey();
+            var keyLabel = $"key[{(_keyIndex - 1) % _config.ApiKeys.Count}]";
+            var url = $"{BaseUrl}/{_config.Model}:generateContent?key={apiKey}";
+
             try
             {
-                _logger.LogDebug($"Calling Gemini API: {_config.Model} (attempt {attempt}/{MaxRetries})");
+                _logger.LogDebug($"Calling Gemini API: {_config.Model} with {keyLabel} (attempt {attempt}/{MaxRetries})");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
@@ -103,16 +121,16 @@ public class GeminiProvider
                 {
                     if (attempt >= MaxRetries)
                     {
-                        _logger.LogError("429 Too Many Requests - max retries reached", null);
+                        _logger.LogError($"429 Too Many Requests on {keyLabel} - max retries reached", null);
                         throw new InvalidOperationException("Gemini API rate limit exceeded. Please wait and try again.");
                     }
-                    _logger.LogInfo($"429 Too Many Requests - waiting {RetryWaitSeconds}s before retry ({attempt}/{MaxRetries})");
+                    _logger.LogInfo($"429 Too Many Requests on {keyLabel} - waiting {RetryWaitSeconds}s before retry ({attempt}/{MaxRetries})");
                     await Task.Delay(TimeSpan.FromSeconds(RetryWaitSeconds), cancellationToken);
                     continue;
                 }
 
                 response.EnsureSuccessStatusCode();
-                _logger.LogInfo($"Gemini API call successful ({stopwatch.ElapsedMilliseconds}ms)");
+                _logger.LogInfo($"Gemini API call successful with {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
 
                 var result = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: cancellationToken);
                 return result ?? throw new InvalidOperationException("Failed to parse response");
@@ -123,7 +141,7 @@ public class GeminiProvider
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError("Failed to call Gemini API", ex);
+                _logger.LogError($"Failed to call Gemini API with {keyLabel}", ex);
                 throw new InvalidOperationException($"Failed to call Gemini API: {ex.Message}", ex);
             }
         }
