@@ -2,12 +2,16 @@ using JeminiLateUse.Config;
 using JeminiLateUse.Logging;
 using JeminiLateUse.Server;
 
+// コマンドライン引数 --debug チェック
+var isDebug = args.Contains("--debug");
+
 // ロギングレベルを設定
-var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+var isDevelopment = isDebug || Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
 LoggerProvider.SetMinimumLogLevel(isDevelopment ? LogLevel.Debug : LogLevel.Information);
 var logger = LoggerProvider.GetLogger("Startup");
 
 logger.LogInfo("🚀 JeminiLateUse starting...");
+if (isDebug) logger.LogInfo("🐛 Debug mode enabled");
 
 // 設定を読み込む
 var appSettings = ConfigurationManager.LoadFromFile("appsettings.json");
@@ -25,7 +29,7 @@ var config = ConfigurationManager.ToGeminiConfig(appSettings);
 var serverPort = ConfigurationManager.GetServerPort(appSettings);
 
 // APIキーの検証
-if (string.IsNullOrWhiteSpace(config.ApiKey))
+if (config.ApiKeys == null || !config.ApiKeys.Any())
 {
     logger.LogError("❌ Error: GEMINI_API_KEY is not set. Please set it via environment variable or appsettings.json");
     Environment.Exit(1);
@@ -33,6 +37,13 @@ if (string.IsNullOrWhiteSpace(config.ApiKey))
 
 logger.LogInfo($"✅ Configuration loaded");
 logger.LogInfo($"   Model: {config.Model}");
+logger.LogInfo($"   API Keys: {config.ApiKeys.Count} key(s) loaded");
+for (int i = 0; i < config.ApiKeys.Count; i++)
+{
+    var key = config.ApiKeys[i];
+    var masked = key.Length >= 8 ? $"...{key[^8..]}" : "****";
+    logger.LogInfo($"   key[{i}]: {masked}");
+}
 logger.LogInfo($"   Rate Limit: {config.MaxRequestsPerMinute} requests/minute");
 logger.LogInfo($"   Server Port: {serverPort}");
 
