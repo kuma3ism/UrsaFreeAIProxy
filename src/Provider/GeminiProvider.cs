@@ -103,7 +103,14 @@ public class GeminiProvider
 
     private async Task<GeminiResponse> SendRequestAsync(object request, CancellationToken cancellationToken)
     {
-        _logger.LogDebug($"Rate limit status: {_rateLimiter.GetRequestsInLastMinute()}/{_config.MaxRequestsPerMinute}");
+        var currentRequests = _rateLimiter.GetRequestsInLastMinute();
+        _logger.LogDebug($"Rate limit status: {currentRequests}/{_config.MaxRequestsPerMinute}");
+
+        if (currentRequests >= _config.MaxRequestsPerMinute)
+        {
+            _logger.LogInfo($"⏳ Rate limit reached ({currentRequests}/{_config.MaxRequestsPerMinute}). Waiting for slot...");
+        }
+
         await _rateLimiter.WaitForSlotAsync(cancellationToken);
         _logger.LogDebug("Rate limit slot acquired");
 
