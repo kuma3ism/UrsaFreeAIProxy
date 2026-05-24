@@ -65,19 +65,15 @@ dotnet run --project src/JeminiLateUse.csproj
 
 ### 3. Continue の設定
 
-`~/.continue/config.json` に追加：
+Continue の設定ファイル（`config.yaml`）に追加：
 
-```json
-{
-  "models": [
-    {
-      "title": "Gemini (Local)",
-      "provider": "openai",
-      "apiBase": "http://localhost:8080/v1",
-      "apiKey": "dummy"
-    }
-  ]
-}
+```yaml
+models:
+  - name: Gemini Flash (Local)
+    provider: openai
+    apiBase: http://localhost:8080/v1
+    apiKey: dummy
+    model: dummy
 ```
 
 ---
