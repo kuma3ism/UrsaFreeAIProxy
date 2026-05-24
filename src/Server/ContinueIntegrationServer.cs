@@ -9,10 +9,13 @@ namespace JeminiLateUse.Server;
 
 public class ContinueIntegrationServer
 {
+    private const int MaxConcurrentRequests = 8;
+
     private readonly GeminiProvider _provider;
     private readonly int _port;
     private HttpListener? _listener;
     private readonly ILogger _logger;
+    private readonly SemaphoreSlim _requestSemaphore = new(MaxConcurrentRequests, MaxConcurrentRequests);
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -40,12 +43,44 @@ public class ContinueIntegrationServer
             try
             {
                 var context = await _listener.GetContextAsync();
-                _ = HandleRequestAsync(context);
+                _ = HandleRequestWithConcurrencyLimitAsync(context);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Error: {ex.Message}");
             }
+        }
+    }
+
+    private async Task HandleRequestWithConcurrencyLimitAsync(HttpListenerContext context)
+    {
+        if (!await _requestSemaphore.WaitAsync(TimeSpan.Zero))
+        {
+            try
+            {
+                context.Response.StatusCode = 503;
+                context.Response.ContentType = "application/json";
+                context.Response.Headers.Add("Retry-After", "5");
+                await WriteResponseAsync(context, new
+                {
+                    error = new { message = "Server is busy. Please retry shortly.", type = "server_busy" }
+                });
+            }
+            finally
+            {
+                context.Response.Close();
+            }
+
+            return;
+        }
+
+        try
+        {
+            await HandleRequestAsync(context);
+        }
+        finally
+        {
+            _requestSemaphore.Release();
         }
     }
 

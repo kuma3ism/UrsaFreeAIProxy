@@ -111,13 +111,13 @@ public class GeminiProvider
             _logger.LogInfo($"⏳ Rate limit reached ({currentRequests}/{_config.MaxRequestsPerMinute}). Waiting for slot...");
         }
 
-        await _rateLimiter.WaitForSlotAsync(cancellationToken);
-        _logger.LogDebug("Rate limit slot acquired");
-
         // キーの数だけ試みる（全キー試してもダメなら諦める）
         var totalKeys = _config.ApiKeys.Count;
         for (int attempt = 1; attempt <= totalKeys; attempt++)
         {
+            await _rateLimiter.WaitForSlotAsync(cancellationToken);
+            _logger.LogDebug("Rate limit slot acquired");
+
             var (apiKey, keyIdx) = GetNextApiKey();
             var keyLabel = $"key[{keyIdx}]({MaskKey(apiKey)})";
             var url = $"{BaseUrl}/{_config.Model}:generateContent?key={apiKey}";
@@ -134,7 +134,6 @@ public class GeminiProvider
                 if ((int)response.StatusCode == 429)
                 {
                     _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
-                    // 待たずに次のキーへ
                     continue;
                 }
 
