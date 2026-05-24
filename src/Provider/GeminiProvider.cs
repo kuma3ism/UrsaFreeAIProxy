@@ -124,7 +124,9 @@ public class GeminiProvider
 
             try
             {
-                _logger.LogDebug($"Calling Gemini API with {keyLabel} (attempt {attempt}/{totalKeys})");
+                // スロット取得後の実際のカウントを表示（1-indexed で「N回目」表示）
+                var reqNum = _rateLimiter.GetRequestsInLastMinute();
+                _logger.LogInfo($"📡 Calling Gemini API [{reqNum}/{_config.MaxRequestsPerMinute} req/min] via {keyLabel}");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();

@@ -110,6 +110,13 @@ public class ContinueIntegrationServer
         }
     }
 
+    private static string Truncate(string? text, int maxLen = 80)
+    {
+        if (string.IsNullOrEmpty(text)) return "(empty)";
+        var trimmed = text.Replace("\n", " ").Replace("\r", "");
+        return trimmed.Length <= maxLen ? trimmed : trimmed[..maxLen] + "...";
+    }
+
     private async Task HandleChatCompletionsAsync(HttpListenerContext context)
     {
         using var reader = new StreamReader(context.Request.InputStream);
@@ -132,6 +139,10 @@ public class ContinueIntegrationServer
 
         _logger.LogInfo($"=>=>=> Gemini: {request.Messages.Length} messages (stream={request.Stream})");
 
+        // ユーザーの最後のメッセージ冒頭を表示
+        var lastUserMsg = request.Messages.LastOrDefault(m => m.Role == "user")?.Content;
+        _logger.LogInfo($"💬 User: \"{Truncate(lastUserMsg)}\"");
+
         try
         {
             var geminiResponse = await _provider.SendMessagesAsync(geminiMessages);
@@ -141,6 +152,9 @@ public class ContinueIntegrationServer
             var tokens = geminiResponse.UsageMetadata?.TotalTokenCount ?? 0;
 
             _logger.LogInfo($"<=<=<= Gemini: {tokens} tokens");
+
+            // レスポンス冒頭を表示
+            _logger.LogInfo($"🤖 Reply: \"{Truncate(assistantText)}\"");
 
             var isStream = request.Stream == true;
 
