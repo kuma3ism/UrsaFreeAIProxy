@@ -11,7 +11,7 @@ public class GeminiConfigTests
         // Arrange
         var config = new GeminiConfig
         {
-            ApiKey = "test-api-key",
+            ApiKeys = new List<string> { "test-api-key" },
             Model = "gemini-1.5-flash"
         };
 
@@ -26,13 +26,13 @@ public class GeminiConfigTests
         // Arrange
         var config = new GeminiConfig
         {
-            ApiKey = null,
+            ApiKeys = new List<string>(),
             Model = "gemini-1.5-flash"
         };
 
         // Act & Assert
         var exception = Assert.Throws<ArgumentException>(() => config.Validate());
-        Assert.Contains("ApiKey is required", exception.Message);
+        Assert.Contains("ApiKey (or ApiKeys) is required", exception.Message);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class GeminiConfigTests
         // Arrange
         var config = new GeminiConfig
         {
-            ApiKey = "test-key",
+            ApiKeys = new List<string> { "test-key" },
             Model = string.Empty
         };
 
