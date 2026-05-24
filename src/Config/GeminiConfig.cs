@@ -2,15 +2,20 @@ namespace JeminiLateUse.Config;
 
 public class GeminiConfig
 {
-    public string? ApiKey { get; set; }
+    /// <summary>ラウンドロビンで使用するAPIキーリスト</summary>
+    public List<string> ApiKeys { get; set; } = new();
+
     public string Model { get; set; } = "gemini-1.5-flash";
     public int MaxRequestsPerMinute { get; set; } = 5;
-    public int DelayMilliseconds { get; set; } = 12000; // 12 seconds between requests
+    public int DelayMilliseconds { get; set; } = 12000;
+
+    /// <summary>後方互換用: 単一キーとして取得</summary>
+    public string? ApiKey => ApiKeys.FirstOrDefault();
 
     public void Validate()
     {
-        if (string.IsNullOrWhiteSpace(ApiKey))
-            throw new ArgumentException("ApiKey is required");
+        if (ApiKeys == null || !ApiKeys.Any())
+            throw new ArgumentException("ApiKey (or ApiKeys) is required");
         if (string.IsNullOrWhiteSpace(Model))
             throw new ArgumentException("Model is required");
     }
