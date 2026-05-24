@@ -32,14 +32,19 @@ public class GeminiProvider
         _logger.LogInfo($"Loaded {_config.ApiKeys.Count} API key(s)");
     }
 
+    /// <summary>APIキーの下8桁を返す（ログ表示用）</summary>
+    private static string MaskKey(string key)
+        => key.Length >= 8 ? $"...{key[^8..]}" : "****";
+
     /// <summary>ラウンドロビンで次のAPIキーを取得する</summary>
-    private string GetNextApiKey()
+    private (string key, int index) GetNextApiKey()
     {
         lock (_keyLock)
         {
-            var key = _config.ApiKeys[_keyIndex % _config.ApiKeys.Count];
+            var index = _keyIndex % _config.ApiKeys.Count;
+            var key = _config.ApiKeys[index];
             _keyIndex++;
-            return key;
+            return (key, index);
         }
     }
 
@@ -106,13 +111,13 @@ public class GeminiProvider
 
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
-            var apiKey = GetNextApiKey();
-            var keyLabel = $"key[{(_keyIndex - 1) % _config.ApiKeys.Count}]";
+            var (apiKey, keyIdx) = GetNextApiKey();
+            var keyLabel = $"key[{keyIdx}]({MaskKey(apiKey)})";
             var url = $"{BaseUrl}/{_config.Model}:generateContent?key={apiKey}";
 
             try
             {
-                _logger.LogDebug($"Calling Gemini API: {_config.Model} with {keyLabel} (attempt {attempt}/{MaxRetries})");
+                _logger.LogDebug($"Calling Gemini API with {keyLabel} (attempt {attempt}/{MaxRetries})");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
@@ -124,13 +129,13 @@ public class GeminiProvider
                         _logger.LogError($"429 Too Many Requests on {keyLabel} - max retries reached", null);
                         throw new InvalidOperationException("Gemini API rate limit exceeded. Please wait and try again.");
                     }
-                    _logger.LogInfo($"429 Too Many Requests on {keyLabel} - waiting {RetryWaitSeconds}s before retry ({attempt}/{MaxRetries})");
+                    _logger.LogInfo($"⚠️  429 Too Many Requests on {keyLabel} - waiting {RetryWaitSeconds}s before retry ({attempt}/{MaxRetries})");
                     await Task.Delay(TimeSpan.FromSeconds(RetryWaitSeconds), cancellationToken);
                     continue;
                 }
 
                 response.EnsureSuccessStatusCode();
-                _logger.LogInfo($"Gemini API call successful with {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
+                _logger.LogInfo($"✅ Response received via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
 
                 var result = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: cancellationToken);
                 return result ?? throw new InvalidOperationException("Failed to parse response");
