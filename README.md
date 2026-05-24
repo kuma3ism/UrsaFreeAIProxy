@@ -1,6 +1,6 @@
 # UrsaFreeAIProxy
 
-Gemini の無料 API キーを使って、Continue を無制限に使い続けるためのローカルプロキシ。
+Gemini の無料 API キーを複数使って、Continue を無制限（登録するAPIの数に依存）に使い続けるためのローカルプロキシ。
 
 ---
 
