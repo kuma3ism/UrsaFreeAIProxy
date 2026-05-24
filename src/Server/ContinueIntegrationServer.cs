@@ -1,11 +1,11 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using JeminiLateUse.Config;
-using JeminiLateUse.Logging;
-using JeminiLateUse.Provider;
+using UrsaFreeAIProxy.Config;
+using UrsaFreeAIProxy.Logging;
+using UrsaFreeAIProxy.Provider;
 
-namespace JeminiLateUse.Server;
+namespace UrsaFreeAIProxy.Server;
 
 public class ContinueIntegrationServer
 {

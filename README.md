@@ -59,7 +59,7 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 ### 2. サーバーを起動
 
 ```bash
-dotnet run --project src/JeminiLateUse.csproj
+dotnet run --project src/UrsaFreeAIProxy.csproj
 ```
 
 ```

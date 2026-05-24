@@ -1,6 +1,6 @@
-using JeminiLateUse.Config;
-using JeminiLateUse.Logging;
-using JeminiLateUse.Server;
+using UrsaFreeAIProxy.Config;
+using UrsaFreeAIProxy.Logging;
+using UrsaFreeAIProxy.Server;
 
 // コマンドライン引数 --debug チェック
 var isDebug = args.Contains("--debug");
@@ -10,7 +10,7 @@ var isDevelopment = isDebug || Environment.GetEnvironmentVariable("ASPNETCORE_EN
 LoggerProvider.SetMinimumLogLevel(isDevelopment ? LogLevel.Debug : LogLevel.Information);
 var logger = LoggerProvider.GetLogger("Startup");
 
-logger.LogInfo("🚀 JeminiLateUse starting...");
+logger.LogInfo("🚀 UrsaFreeAIProxy starting...");
 if (isDebug) logger.LogInfo("🐛 Debug mode enabled");
 
 // 設定を読み込む

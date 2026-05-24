@@ -1,9 +1,9 @@
 using System.Net.Http.Json;
-using JeminiLateUse.Config;
-using JeminiLateUse.Logging;
-using JeminiLateUse.RateLimit;
+using UrsaFreeAIProxy.Config;
+using UrsaFreeAIProxy.Logging;
+using UrsaFreeAIProxy.RateLimit;
 
-namespace JeminiLateUse.Provider;
+namespace UrsaFreeAIProxy.Provider;
 
 /// <summary>OpenAIメッセージをGeminiに渡す際の中間モデル</summary>
 public record GeminiChatMessage(string Role, string Content);
