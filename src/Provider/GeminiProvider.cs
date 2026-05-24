@@ -5,6 +5,9 @@ using JeminiLateUse.RateLimit;
 
 namespace JeminiLateUse.Provider;
 
+/// <summary>OpenAIメッセージをGeminiに渡す際の中間モデル</summary>
+public record GeminiChatMessage(string Role, string Content);
+
 public class GeminiProvider
 {
     private readonly GeminiConfig _config;
@@ -24,30 +27,68 @@ public class GeminiProvider
         _logger = LoggerProvider.GetLogger(nameof(GeminiProvider));
     }
 
+    /// <summary>マルチターン会話を正式なGemini形式で送信する</summary>
+    public async Task<GeminiResponse> SendMessagesAsync(
+        IEnumerable<GeminiChatMessage> messages,
+        CancellationToken cancellationToken = default)
+    {
+        var messageList = messages.ToList();
+
+        // systemロールはsystemInstructionに分離（Gemini APIの仕様）
+        var systemMessages = messageList.Where(m => m.Role == "system").ToList();
+        var chatMessages = messageList.Where(m => m.Role != "system").ToList();
+
+        var contents = chatMessages
+            .Where(m => !string.IsNullOrWhiteSpace(m.Content))
+            .Select(m => new
+            {
+                // Geminiはassistantではなくmodelというロール名を使う
+                role = m.Role == "assistant" ? "model" : "user",
+                parts = new[] { new { text = m.Content } }
+            }).ToArray();
+
+        object request;
+        if (systemMessages.Any())
+        {
+            var systemText = string.Join("\n", systemMessages.Select(m => m.Content));
+            request = new
+            {
+                system_instruction = new { parts = new[] { new { text = systemText } } },
+                contents
+            };
+        }
+        else
+        {
+            request = new { contents };
+        }
+
+        _logger.LogDebug($"Sending {chatMessages.Count} message(s) to Gemini (system: {systemMessages.Count})");
+        return await SendRequestAsync(request, cancellationToken);
+    }
+
+    /// <summary>単一メッセージを送信する（/chatエンドポイント後方互換用）</summary>
     public async Task<GeminiResponse> SendMessageAsync(string message, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug($"Sending message: {message.Substring(0, Math.Min(50, message.Length))}...");
-        _logger.LogDebug($"Rate limit status: {_rateLimiter.GetRequestsInLastMinute()}/5");
-
-        // Wait for rate limit slot
-        await _rateLimiter.WaitForSlotAsync();
-        _logger.LogDebug("Rate limit slot acquired");
-
-        var url = $"{BaseUrl}/{_config.Model}:generateContent?key={_config.ApiKey}";
 
         var request = new
         {
             contents = new[]
             {
-                new
-                {
-                    parts = new[]
-                    {
-                        new { text = message }
-                    }
-                }
+                new { parts = new[] { new { text = message } } }
             }
         };
+
+        return await SendRequestAsync(request, cancellationToken);
+    }
+
+    private async Task<GeminiResponse> SendRequestAsync(object request, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug($"Rate limit status: {_rateLimiter.GetRequestsInLastMinute()}/{_config.MaxRequestsPerMinute}");
+        await _rateLimiter.WaitForSlotAsync(cancellationToken);
+        _logger.LogDebug("Rate limit slot acquired");
+
+        var url = $"{BaseUrl}/{_config.Model}:generateContent?key={_config.ApiKey}";
 
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
@@ -62,7 +103,7 @@ public class GeminiProvider
                 {
                     if (attempt >= MaxRetries)
                     {
-                        _logger.LogError($"429 Too Many Requests - max retries reached", null);
+                        _logger.LogError("429 Too Many Requests - max retries reached", null);
                         throw new InvalidOperationException("Gemini API rate limit exceeded. Please wait and try again.");
                     }
                     _logger.LogInfo($"429 Too Many Requests - waiting {RetryWaitSeconds}s before retry ({attempt}/{MaxRetries})");
@@ -82,7 +123,7 @@ public class GeminiProvider
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError($"Failed to call Gemini API", ex);
+                _logger.LogError("Failed to call Gemini API", ex);
                 throw new InvalidOperationException($"Failed to call Gemini API: {ex.Message}", ex);
             }
         }
@@ -90,15 +131,8 @@ public class GeminiProvider
         throw new InvalidOperationException("Failed to call Gemini API after max retries.");
     }
 
-    public int GetCurrentRateLimit()
-    {
-        return _rateLimiter.GetRequestsInLastMinute();
-    }
-
-    public string GetModel()
-    {
-        return _config.Model;
-    }
+    public int GetCurrentRateLimit() => _rateLimiter.GetRequestsInLastMinute();
+    public string GetModel() => _config.Model;
 }
 
 public class GeminiResponse

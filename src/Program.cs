@@ -22,7 +22,7 @@ if (isDevelopment)
 
 // Gemini設定を作成
 var config = ConfigurationManager.ToGeminiConfig(appSettings);
-var serverPort = appSettings.Server?.Port ?? 8080;
+var serverPort = ConfigurationManager.GetServerPort(appSettings);
 
 // APIキーの検証
 if (string.IsNullOrWhiteSpace(config.ApiKey))

@@ -117,12 +117,14 @@ public class ContinueIntegrationServer
             return;
         }
 
-        var lastMessage = request.Messages[^1];
-        var userMessage = lastMessage.Content ?? string.Empty;
+        // OpenAIメッセージをGeminiChatMessageに変換してマルチターンで送信
+        var geminiMessages = request.Messages
+            .Where(m => !string.IsNullOrWhiteSpace(m.Content))
+            .Select(m => new GeminiChatMessage(m.Role ?? "user", m.Content!));
 
         try
         {
-            var geminiResponse = await _provider.SendMessageAsync(userMessage);
+            var geminiResponse = await _provider.SendMessagesAsync(geminiMessages);
             var candidate = geminiResponse.Candidates?.FirstOrDefault();
             var part = candidate?.Content?.Parts?.FirstOrDefault();
             var assistantText = part?.Text ?? "No response";
@@ -131,7 +133,6 @@ public class ContinueIntegrationServer
 
             if (isStream)
             {
-                // SSEストリーミングレスポンス
                 context.Response.StatusCode = 200;
                 context.Response.ContentType = "text/event-stream";
                 context.Response.Headers.Add("Cache-Control", "no-cache");
@@ -140,7 +141,6 @@ public class ContinueIntegrationServer
                 var id = Guid.NewGuid().ToString("N")[..24];
                 var created = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                // 本文チャンク
                 var chunk = JsonSerializer.Serialize(new
                 {
                     id,
@@ -158,7 +158,6 @@ public class ContinueIntegrationServer
                     }
                 }, _jsonOptions);
 
-                // 終了チャンク
                 var doneChunk = JsonSerializer.Serialize(new
                 {
                     id,
@@ -183,7 +182,6 @@ public class ContinueIntegrationServer
             }
             else
             {
-                // 通常レスポンス
                 var response = new OpenAIChatResponse
                 {
                     Id = Guid.NewGuid().ToString("N")[..24],
@@ -257,7 +255,6 @@ public class ContinueIntegrationServer
     }
 }
 
-// OpenAI互換リクエスト
 public class OpenAIChatRequest
 {
     [JsonPropertyName("messages")]
@@ -276,7 +273,6 @@ public class OpenAIChatRequest
     public bool? Stream { get; set; }
 }
 
-// OpenAI互換レスポンス
 public class OpenAIChatResponse
 {
     [JsonPropertyName("id")]
