@@ -15,8 +15,6 @@ public class GeminiProvider
     private readonly HttpClient _httpClient;
     private readonly ILogger _logger;
     private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
-    private const int RetryWaitSeconds = 60;
-    private const int MaxRetries = 3;
 
     // ラウンドロビン用カウンター
     private int _keyIndex = 0;
@@ -109,7 +107,9 @@ public class GeminiProvider
         await _rateLimiter.WaitForSlotAsync(cancellationToken);
         _logger.LogDebug("Rate limit slot acquired");
 
-        for (int attempt = 1; attempt <= MaxRetries; attempt++)
+        // キーの数だけ試みる（全キー試してもダメなら諦める）
+        var totalKeys = _config.ApiKeys.Count;
+        for (int attempt = 1; attempt <= totalKeys; attempt++)
         {
             var (apiKey, keyIdx) = GetNextApiKey();
             var keyLabel = $"key[{keyIdx}]({MaskKey(apiKey)})";
@@ -117,20 +117,15 @@ public class GeminiProvider
 
             try
             {
-                _logger.LogDebug($"Calling Gemini API with {keyLabel} (attempt {attempt}/{MaxRetries})");
+                _logger.LogDebug($"Calling Gemini API with {keyLabel} (attempt {attempt}/{totalKeys})");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
 
                 if ((int)response.StatusCode == 429)
                 {
-                    if (attempt >= MaxRetries)
-                    {
-                        _logger.LogError($"429 Too Many Requests on {keyLabel} - max retries reached", null);
-                        throw new InvalidOperationException("Gemini API rate limit exceeded. Please wait and try again.");
-                    }
-                    _logger.LogInfo($"⚠️  429 Too Many Requests on {keyLabel} - waiting {RetryWaitSeconds}s before retry ({attempt}/{MaxRetries})");
-                    await Task.Delay(TimeSpan.FromSeconds(RetryWaitSeconds), cancellationToken);
+                    _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
+                    // 待たずに次のキーへ
                     continue;
                 }
 
@@ -151,7 +146,8 @@ public class GeminiProvider
             }
         }
 
-        throw new InvalidOperationException("Failed to call Gemini API after max retries.");
+        _logger.LogError("All API keys exhausted (all returned 429). Please add more keys or wait.", null);
+        throw new InvalidOperationException("All API keys are rate limited. Please try again later.");
     }
 
     public int GetCurrentRateLimit() => _rateLimiter.GetRequestsInLastMinute();
