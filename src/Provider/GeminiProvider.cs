@@ -5,7 +5,7 @@ using UrsaFreeAIProxy.RateLimit;
 
 namespace UrsaFreeAIProxy.Provider;
 
-/// <summary>OpenAIメッセージをGeminiに渡す際の中間モデル</summary>
+/// <summary>OpenAIメッセージをAI APIに渡す際の中間モデル</summary>
 public record GeminiChatMessage(string Role, string Content);
 
 public class GeminiProvider
@@ -46,14 +46,14 @@ public class GeminiProvider
         }
     }
 
-    /// <summary>マルチターン会話を正式なGemini形式で送信する</summary>
+    /// <summary>マルチターン会話を送信する</summary>
     public async Task<GeminiResponse> SendMessagesAsync(
         IEnumerable<GeminiChatMessage> messages,
         CancellationToken cancellationToken = default)
     {
         var messageList = messages.ToList();
 
-        // systemロールはsystemInstructionに分離（Gemini APIの仕様）
+        // systemロールはsystemInstructionに分離（API仕様）
         var systemMessages = messageList.Where(m => m.Role == "system").ToList();
         var chatMessages = messageList.Where(m => m.Role != "system").ToList();
 
@@ -61,7 +61,6 @@ public class GeminiProvider
             .Where(m => !string.IsNullOrWhiteSpace(m.Content))
             .Select(m => new
             {
-                // Geminiはassistantではなくmodelというロール名を使う
                 role = m.Role == "assistant" ? "model" : "user",
                 parts = new[] { new { text = m.Content } }
             }).ToArray();
@@ -81,7 +80,7 @@ public class GeminiProvider
             request = new { contents };
         }
 
-        _logger.LogDebug($"Sending {chatMessages.Count} message(s) to Gemini (system: {systemMessages.Count})");
+        _logger.LogDebug($"Sending {chatMessages.Count} message(s) to [{_config.Model}] (system: {systemMessages.Count})");
         return await SendRequestAsync(request, cancellationToken);
     }
 
@@ -124,9 +123,8 @@ public class GeminiProvider
 
             try
             {
-                // スロット取得後の実際のカウントを表示（1-indexed で「N回目」表示）
                 var reqNum = _rateLimiter.GetRequestsInLastMinute();
-                _logger.LogInfo($"📡 Calling Gemini API [{reqNum}/{_config.MaxRequestsPerMinute} req/min] via {keyLabel}");
+                _logger.LogInfo($"📡 [{_config.Model}] [{reqNum}/{_config.MaxRequestsPerMinute} req/min] via {keyLabel}");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
@@ -138,7 +136,7 @@ public class GeminiProvider
                 }
 
                 response.EnsureSuccessStatusCode();
-                _logger.LogInfo($"✅ Response received via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
+                _logger.LogInfo($"✅ [{_config.Model}] response via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
 
                 var result = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: cancellationToken);
                 return result ?? throw new InvalidOperationException("Failed to parse response");
@@ -149,8 +147,8 @@ public class GeminiProvider
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError($"Failed to call Gemini API with {keyLabel}", ex);
-                throw new InvalidOperationException($"Failed to call Gemini API: {ex.Message}", ex);
+                _logger.LogError($"Failed to call [{_config.Model}] with {keyLabel}", ex);
+                throw new InvalidOperationException($"Failed to call API: {ex.Message}", ex);
             }
         }
 
