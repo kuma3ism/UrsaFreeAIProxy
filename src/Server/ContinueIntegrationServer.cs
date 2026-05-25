@@ -172,7 +172,7 @@ public class ContinueIntegrationServer
             .Where(m => !string.IsNullOrWhiteSpace(m.Content))
             .Select(m => new GeminiChatMessage(m.Role ?? "user", m.Content!));
 
-        _logger.LogInfo($"=>=>=> Gemini: {request.Messages.Length} messages (stream={request.Stream})");
+        _logger.LogInfo($"=>=>=> [{_provider.GetModel()}]: {request.Messages.Length} messages (stream={request.Stream})");
 
         // ユーザーの最後のメッセージ冒頭を表示
         var lastUserMsg = request.Messages.LastOrDefault(m => m.Role == "user")?.Content;
@@ -186,7 +186,7 @@ public class ContinueIntegrationServer
             var assistantText = part?.Text ?? "No response";
             var tokens = geminiResponse.UsageMetadata?.TotalTokenCount ?? 0;
 
-            _logger.LogInfo($"<=<=<= Gemini: {tokens} tokens");
+            _logger.LogInfo($"<=<=<= [{_provider.GetModel()}]: {tokens} tokens");
 
             // レスポンス冒頭を表示
             _logger.LogInfo($"🤖 Reply: \"{Truncate(assistantText)}\"");
@@ -298,7 +298,7 @@ public class ContinueIntegrationServer
             return;
         }
 
-        _logger.LogInfo($"=>=>=> Gemini: {request.Message.Substring(0, Math.Min(30, request.Message.Length))}...");
+        _logger.LogInfo($"=>=>=> [{_provider.GetModel()}]: {request.Message.Substring(0, Math.Min(30, request.Message.Length))}...");
         var response = await _provider.SendMessageAsync(request.Message);
         var text = response.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? "No response";
 
