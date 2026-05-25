@@ -11,7 +11,7 @@ public record GeminiChatMessage(string Role, string Content);
 public class GeminiProvider
 {
     private readonly GeminiConfig _config;
-    private readonly RateLimiter _rateLimiter;
+    private readonly RateLimiter[] _rateLimiters;
     private readonly HttpClient _httpClient;
     private readonly ILogger _logger;
     private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -24,7 +24,9 @@ public class GeminiProvider
     {
         config.Validate();
         _config = config;
-        _rateLimiter = new RateLimiter(config.MaxRequestsPerMinute);
+        _rateLimiters = config.ApiKeys
+            .Select(_ => new RateLimiter(config.MaxRequestsPerMinute))
+            .ToArray();
         _httpClient = new HttpClient();
         _logger = LoggerProvider.GetLogger(nameof(GeminiProvider));
         _logger.LogInfo($"Loaded {_config.ApiKeys.Count} API key(s)");
@@ -102,28 +104,28 @@ public class GeminiProvider
 
     private async Task<GeminiResponse> SendRequestAsync(object request, CancellationToken cancellationToken)
     {
-        var currentRequests = _rateLimiter.GetRequestsInLastMinute();
-        _logger.LogDebug($"Rate limit status: {currentRequests}/{_config.MaxRequestsPerMinute}");
-
-        if (currentRequests >= _config.MaxRequestsPerMinute)
-        {
-            _logger.LogInfo($"⏳ Rate limit reached ({currentRequests}/{_config.MaxRequestsPerMinute}). Waiting for slot...");
-        }
-
         // キーの数だけ試みる（全キー試してもダメなら諦める）
         var totalKeys = _config.ApiKeys.Count;
         for (int attempt = 1; attempt <= totalKeys; attempt++)
         {
-            await _rateLimiter.WaitForSlotAsync(cancellationToken);
-            _logger.LogDebug("Rate limit slot acquired");
-
             var (apiKey, keyIdx) = GetNextApiKey();
+            var rateLimiter = _rateLimiters[keyIdx];
+            var currentRequests = rateLimiter.GetRequestsInLastMinute();
             var keyLabel = $"key[{keyIdx}]({MaskKey(apiKey)})";
             var url = $"{BaseUrl}/{_config.Model}:generateContent?key={apiKey}";
 
+            _logger.LogDebug($"Rate limit status for {keyLabel}: {currentRequests}/{_config.MaxRequestsPerMinute}");
+            if (currentRequests >= _config.MaxRequestsPerMinute)
+            {
+                _logger.LogInfo($"⏳ Rate limit reached for {keyLabel} ({currentRequests}/{_config.MaxRequestsPerMinute}). Waiting for slot...");
+            }
+
+            await rateLimiter.WaitForSlotAsync(cancellationToken);
+            _logger.LogDebug($"Rate limit slot acquired for {keyLabel}");
+
             try
             {
-                var reqNum = _rateLimiter.GetRequestsInLastMinute();
+                var reqNum = rateLimiter.GetRequestsInLastMinute();
                 _logger.LogInfo($"📡 [{_config.Model}] [{reqNum}/{_config.MaxRequestsPerMinute} req/min] via {keyLabel}");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
@@ -156,7 +158,7 @@ public class GeminiProvider
         throw new InvalidOperationException("All API keys are rate limited. Please try again later.");
     }
 
-    public int GetCurrentRateLimit() => _rateLimiter.GetRequestsInLastMinute();
+    public int GetCurrentRateLimit() => _rateLimiters.Sum(limiter => limiter.GetRequestsInLastMinute());
     public string GetModel() => _config.Model;
 }
 

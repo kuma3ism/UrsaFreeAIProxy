@@ -64,6 +64,14 @@ dotnet run --project src/UrsaFreeAIProxy.csproj
 ✅ Ready to serve CONTINUE agent requests
 ```
 
+キーごとの疎通と合計目安を確認する場合：
+
+```bash
+dotnet run --project src/UrsaFreeAIProxy.csproj -- --test
+```
+
+`--test` は各 API キーに 1 回ずつテストリクエストを送り、キーごとの成功/429/失敗と、`キー数 × MaxRequestsPerMinute` の見込み req/min を表示する。
+
 ### 3. Continue の設定
 
 Continue の設定ファイル（`config.yaml`）に追加：
@@ -117,8 +125,9 @@ models:
 Gemini 3.5 Flash 無料枠のデフォルト制限は **15 req/min**。  
 `appsettings.json` の `MaxRequestsPerMinute` をモデルの実際の制限に合わせて設定する。
 
-キーを複数登録している場合でも、このプロキシ内のカウンターは**全キー合算**で管理している。  
-キーの数を増やしても req/min は上がらないが、429 が 1 本のキーに集中するのを防ぐ効果がある。
+キーを複数登録している場合、このプロキシ内のカウンターは**キーごと**に管理している。
+
+1 本のキーが 429 を返した場合は、待機せずに次のキーへ切り替えて再試行する。
 
 ---
 

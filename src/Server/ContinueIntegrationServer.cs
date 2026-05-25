@@ -169,13 +169,14 @@ public class ContinueIntegrationServer
         }
 
         var geminiMessages = request.Messages
+            .Select(m => new GeminiChatMessage(m.Role ?? "user", ExtractTextContent(m.Content)))
             .Where(m => !string.IsNullOrWhiteSpace(m.Content))
-            .Select(m => new GeminiChatMessage(m.Role ?? "user", m.Content!));
+            .ToArray();
 
         _logger.LogInfo($"=>=>=> [{_provider.GetModel()}]: {request.Messages.Length} messages (stream={request.Stream})");
 
         // ユーザーの最後のメッセージ冒頭を表示
-        var lastUserMsg = request.Messages.LastOrDefault(m => m.Role == "user")?.Content;
+        var lastUserMsg = ExtractTextContent(request.Messages.LastOrDefault(m => m.Role == "user")?.Content);
         _logger.LogInfo($"💬 User: \"{Truncate(lastUserMsg)}\"");
 
         try
@@ -256,7 +257,7 @@ public class ContinueIntegrationServer
                         new OpenAIChoice
                         {
                             Index = 0,
-                            Message = new OpenAIMessage { Role = "assistant", Content = assistantText },
+                            Message = new OpenAIResponseMessage { Role = "assistant", Content = assistantText },
                             FinishReason = "stop"
                         }
                     },
@@ -316,6 +317,52 @@ public class ContinueIntegrationServer
         await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
     }
 
+    private static string ExtractTextContent(object? content)
+    {
+        if (content == null)
+        {
+            return "";
+        }
+
+        if (content is string text)
+        {
+            return text;
+        }
+
+        if (content is JsonElement element)
+        {
+            return ExtractTextContent(element);
+        }
+
+        return content.ToString() ?? "";
+    }
+
+    private static string ExtractTextContent(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? "",
+            JsonValueKind.Array => string.Join("\n", element.EnumerateArray().Select(ExtractTextContent).Where(text => !string.IsNullOrWhiteSpace(text))),
+            JsonValueKind.Object => ExtractTextContentFromObject(element),
+            _ => ""
+        };
+    }
+
+    private static string ExtractTextContentFromObject(JsonElement element)
+    {
+        if (element.TryGetProperty("text", out var textElement))
+        {
+            return ExtractTextContent(textElement);
+        }
+
+        if (element.TryGetProperty("content", out var contentElement))
+        {
+            return ExtractTextContent(contentElement);
+        }
+
+        return "";
+    }
+
     public void Stop()
     {
         _listener?.Stop();
@@ -367,13 +414,22 @@ public class OpenAIChoice
     public int Index { get; set; }
 
     [JsonPropertyName("message")]
-    public OpenAIMessage? Message { get; set; }
+    public OpenAIResponseMessage? Message { get; set; }
 
     [JsonPropertyName("finish_reason")]
     public string? FinishReason { get; set; }
 }
 
 public class OpenAIMessage
+{
+    [JsonPropertyName("role")]
+    public string? Role { get; set; }
+
+    [JsonPropertyName("content")]
+    public object? Content { get; set; }
+}
+
+public class OpenAIResponseMessage
 {
     [JsonPropertyName("role")]
     public string? Role { get; set; }

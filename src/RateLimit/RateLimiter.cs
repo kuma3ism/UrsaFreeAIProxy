@@ -4,14 +4,16 @@ public class RateLimiter
 {
     private readonly Queue<DateTime> _requestTimestamps = new();
     private readonly int _maxRequestsPerMinute;
+    private readonly TimeSpan _window;
     private readonly object _lock = new();
 
-    public RateLimiter(int maxRequestsPerMinute = 5)
+    public RateLimiter(int maxRequestsPerMinute = 5, TimeSpan? window = null)
     {
         if (maxRequestsPerMinute <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxRequestsPerMinute), "Rate limit must be greater than zero");
 
         _maxRequestsPerMinute = maxRequestsPerMinute;
+        _window = window ?? TimeSpan.FromMinutes(1);
     }
 
     public async Task WaitForSlotAsync(CancellationToken cancellationToken = default)
@@ -32,7 +34,7 @@ public class RateLimiter
                 }
 
                 var oldestRequest = _requestTimestamps.Peek();
-                waitTime = oldestRequest.AddMinutes(1) - now;
+                waitTime = oldestRequest.Add(_window) - now;
             }
 
             if (waitTime > TimeSpan.Zero)
@@ -58,8 +60,8 @@ public class RateLimiter
 
     private void RemoveExpiredRequests(DateTime now)
     {
-        var oneMinuteAgo = now.AddMinutes(-1);
-        while (_requestTimestamps.Count > 0 && _requestTimestamps.Peek() < oneMinuteAgo)
+        var windowStart = now - _window;
+        while (_requestTimestamps.Count > 0 && _requestTimestamps.Peek() <= windowStart)
         {
             _requestTimestamps.Dequeue();
         }
