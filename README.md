@@ -3,8 +3,6 @@
 Gemini の無料APIキーを複数登録して利用制限を分散する、制限を超えそうになると待機してエラーを回避しタスクを完了させる
 Continueからの接続を想定してます
 
-https://aistudio.google.com/api-keys
-
 ---
 
 ## これは何？
