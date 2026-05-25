@@ -1,9 +1,11 @@
 using UrsaFreeAIProxy.Config;
 using UrsaFreeAIProxy.Logging;
+using UrsaFreeAIProxy.Provider;
 using UrsaFreeAIProxy.Server;
 
-// コマンドライン引数 --debug チェック
+// コマンドライン引数チェック
 var isDebug = args.Contains("--debug");
+var isTest  = args.Contains("--test");
 
 // ロギングレベルを設定
 var isDevelopment = isDebug || Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
@@ -50,6 +52,14 @@ for (int i = 0; i < config.ApiKeys.Count; i++)
     logger.LogInfo($"   key[{i}]: {masked}");
 }
 logger.LogInfo($"   Rate Limit: {config.MaxRequestsPerMinute} requests/minute");
+
+// --test モード
+if (isTest)
+{
+    await RunRateLimitTestAsync(config, logger);
+    return;
+}
+
 logger.LogInfo($"   Server Port: {serverPort}");
 
 // サーバーを起動
@@ -63,6 +73,51 @@ catch (Exception ex)
 {
     logger.LogError($"Failed to start server", ex);
     Environment.Exit(1);
+}
+
+static async Task RunRateLimitTestAsync(GeminiConfig config, ILogger logger)
+{
+    logger.LogInfo("");
+    logger.LogInfo("🧪 ===== Rate Limit Test =====");
+    logger.LogInfo($"   Sending {config.MaxRequestsPerMinute + 1} requests (limit={config.MaxRequestsPerMinute})");
+    logger.LogInfo($"   Keys: {config.ApiKeys.Count}");
+    logger.LogInfo("");
+
+    var provider = new GeminiProvider(config);
+    const string testMessage = "Reply with only the word OK.";
+    int total = config.MaxRequestsPerMinute + 1;
+    int succeeded = 0;
+    int failed = 0;
+
+    for (int i = 1; i <= total; i++)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var response = await provider.SendMessageAsync(testMessage);
+            sw.Stop();
+            var text = response.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? "(empty)";
+            var waitNote = sw.ElapsedMilliseconds > 5000 ? $" (waited {sw.ElapsedMilliseconds / 1000}s)" : "";
+            logger.LogInfo($"   [{i}/{total}] ✅ {sw.ElapsedMilliseconds}ms{waitNote} → \"{text.Trim()}\"");
+            succeeded++;
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            logger.LogError($"   [{i}/{total}] ❌ {sw.ElapsedMilliseconds}ms → {ex.Message}");
+            failed++;
+        }
+    }
+
+    logger.LogInfo("");
+    logger.LogInfo($"🧪 ===== Result =====");
+    logger.LogInfo($"   ✅ Succeeded : {succeeded}");
+    logger.LogInfo($"   ❌ Failed    : {failed}");
+    if (failed == 0)
+        logger.LogInfo("   🎉 All requests completed successfully!");
+    else
+        logger.LogWarning("   ⚠️  Some requests failed. Check your API keys.");
+    logger.LogInfo("");
 }
 
 static int? GetPortFromArgs(string[] args)
