@@ -52,20 +52,7 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 
 キーは 1 本でも動く。複数登録するとラウンドロビンで分散する。
 
-### 2. 環境変数で設定する（オプション）
-
-appsettings.json の代わりに環境変数でも設定できる。ファイルに書きたくない場合はこちらを使う。
-
-| 環境変数                        | 内容                           | デフォルト          |
-| ------------------------------- | ------------------------------ | ------------------- |
-| `GEMINI_API_KEY`                | API キー（1 本のみ）           | —                   |
-| `GEMINI_MODEL`                  | 使用するモデル名               | `gemini-1.5-flash`  |
-| `GEMINI_MAX_REQUESTS_PER_MINUTE`| 1 キーあたりの上限 req/min     | `5`                 |
-| `SERVER_PORT`                   | サーバーのポート番号           | `8080`              |
-
-環境変数が設定されている場合、appsettings.json より優先される。`GEMINI_API_KEY` は appsettings.json の `ApiKeys` リストの先頭に追加される。
-
-### 3. サーバーを起動
+### 2. サーバーを起動
 Windowsの場合は管理者権限が必要です
 
 ```bash
