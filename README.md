@@ -8,8 +8,7 @@ Continue（VS Code の AI コーディング拡張）からの接続を想定し
 
 ## これは何？
 
-Continue は OpenAI 互換の API を話せる。  
-このアプリはその口をローカルで受け、Gemini の無料 API に変換して流す。
+複数の無料APIキーを束ね、Continueからは一つのAIを扱ってるように振舞います
 
 ```
 VS Code (Continue) → localhost:8080 → Gemini API (無料)
@@ -18,12 +17,8 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 ---
 
 ## メリット
-
-- **無料で使い続けられる** — Gemini Flash の無料枠（15 req/min）をフルに活用
-- **複数キーのラウンドロビン** — API キーを複数登録して 429 を回避、実効スループットを上げられる
-- **レート制限を自動管理** — 制限に達したら自動で待機、Continue 側はエラーを気にしなくていい
-- **ログで会話の流れが見える** — 何を聞いて何が返ってきたか、分間何回目かが一目でわかる
-
+- **複数APIキーのラウンドロビン** — 複数のAPIキーを順番に使用します
+- **レート制限を自動管理** — 制限に達したら自動で待機(15rpmが回復するまで60秒待機)
 ---
 
 ## セットアップ
@@ -71,6 +66,7 @@ appsettings.json の代わりに環境変数でも設定できる。ファイル
 環境変数が設定されている場合、appsettings.json より優先される。`GEMINI_API_KEY` は appsettings.json の `ApiKeys` リストの先頭に追加される。
 
 ### 3. サーバーを起動
+Windowsの場合は管理者権限が必要です
 
 ```bash
 dotnet run --project src/UrsaFreeAIProxy.csproj
