@@ -1,13 +1,14 @@
 # UrsaFreeAIProxy
 
-Gemini の無料APIキーを複数登録して利用制限を分散する、制限を超えそうになると待機してエラーを回避しタスクを完了させる
-Continueからの接続を想定してます
+Gemini の無料 API キーを複数登録して利用制限を分散するローカルプロキシ。  
+制限に達すると自動で待機してエラーを回避し、タスクを完了させる。  
+Continue（VS Code の AI コーディング拡張）からの接続を想定しています。
 
 ---
 
 ## これは何？
 
-Continue（VS Code の AI コーディング拡張）は OpenAI 互換の API を話せる。  
+Continue は OpenAI 互換の API を話せる。  
 このアプリはその口をローカルで受け、Gemini の無料 API に変換して流す。
 
 ```
@@ -18,8 +19,8 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 
 ## メリット
 
-- **無料で使い続けられる** — Gemini 3.5 Flash の無料枠（15 req/min）をフルに活用
-- **複数キーのラウンドロビン** — API キーを複数登録して429を回避、実効スループットを上げられる
+- **無料で使い続けられる** — Gemini Flash の無料枠（15 req/min）をフルに活用
+- **複数キーのラウンドロビン** — API キーを複数登録して 429 を回避、実効スループットを上げられる
 - **レート制限を自動管理** — 制限に達したら自動で待機、Continue 側はエラーを気にしなくていい
 - **ログで会話の流れが見える** — 何を聞いて何が返ってきたか、分間何回目かが一目でわかる
 
@@ -29,14 +30,18 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 
 ### 前提
 
-- .NET 8.0 以上（Mac、Windows）
+- .NET 8.0 以上（Windows、Mac）
 - Gemini API キー（[Google AI Studio](https://aistudio.google.com) で無料取得）
 
 ### 1. appsettings.json を編集
 
+> ⚠️ **注意: appsettings.json はデフォルトで .gitignore に含まれていません。**  
+> API キーを含むこのファイルをリポジトリにコミットしないよう注意してください。  
+> 環境変数（後述）で代替するか、`.gitignore` に `appsettings.json` を追加することを推奨します。
+
 ```json
 {
-  "Gemini": {
+  "Ai": {
     "ApiKeys": [
       "your-gemini-api-key-1",
       "your-gemini-api-key-2"
@@ -52,27 +57,61 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 
 キーは 1 本でも動く。複数登録するとラウンドロビンで分散する。
 
-### 2. サーバーを起動
+### 2. 環境変数で設定する（オプション）
+
+appsettings.json の代わりに環境変数でも設定できる。ファイルに書きたくない場合はこちらを使う。
+
+| 環境変数                        | 内容                           | デフォルト          |
+| ------------------------------- | ------------------------------ | ------------------- |
+| `GEMINI_API_KEY`                | API キー（1 本のみ）           | —                   |
+| `GEMINI_MODEL`                  | 使用するモデル名               | `gemini-1.5-flash`  |
+| `GEMINI_MAX_REQUESTS_PER_MINUTE`| 1 キーあたりの上限 req/min     | `5`                 |
+| `SERVER_PORT`                   | サーバーのポート番号           | `8080`              |
+
+環境変数が設定されている場合、appsettings.json より優先される。`GEMINI_API_KEY` は appsettings.json の `ApiKeys` リストの先頭に追加される。
+
+### 3. サーバーを起動
 
 ```bash
 dotnet run --project src/UrsaFreeAIProxy.csproj
 ```
 
+起動すると以下のような出力が表示される：
+
 ```
+🚀 UrsaFreeAIProxy starting...
+✅ Configuration loaded
+   Model: gemini-2.0-flash
+   API Keys: 2 key(s) loaded
+   key[0]: ...CwulQ
+   key[1]: ...XUD4
+   Rate Limit: 15 requests/minute/key
+   Effective Limit: 30 requests/minute
+   Server Port: 8080
 🚀 Server started on http://localhost:8080
-📝 Model: gemini-3.5-flash
+📝 Model: gemini-2.0-flash
 ✅ Ready to serve CONTINUE agent requests
 ```
 
-キーごとの疎通と合計目安を確認する場合：
+#### オプション
+
+| オプション        | 内容                                            |
+| ----------------- | ----------------------------------------------- |
+| `--test`          | 各キーに 1 回ずつテストリクエストを送って疎通確認 |
+| `--debug`         | デバッグログを有効化（詳細なリクエスト情報を表示）|
+| `--port <番号>`   | ポートを指定して起動（例: `--port 9090`）        |
 
 ```bash
+# 疎通確認
 dotnet run --project src/UrsaFreeAIProxy.csproj -- --test
+
+# デバッグモードで起動
+dotnet run --project src/UrsaFreeAIProxy.csproj -- --debug
 ```
 
-`--test` は各 API キーに 1 回ずつテストリクエストを送り、キーごとの成功/429/失敗と、`キー数 × MaxRequestsPerMinute` の見込み req/min を表示する。
+`--test` は各 API キーに 1 回ずつテストリクエストを送り、キーごとの成功 / 429 / 失敗と、`キー数 × MaxRequestsPerMinute` の見込み req/min を表示する。
 
-### 3. Continue の設定
+### 4. Continue の設定
 
 Continue の設定ファイル（`config.yaml`）に追加：
 
@@ -93,11 +132,11 @@ models:
 
 ```
 →→→ Continue: POST /v1/chat/completions
-=>=>=> Gemini: 14 messages (stream=True)
+=>=>=> [gemini-2.0-flash]: 14 messages (stream=True)
 💬 User: "UrsaButtonのOnClickをIUrsaButtonActionに差し替えたい..."
-📡 Calling Gemini API [3/15 req/min] via key[2](...f82zL3RQ)
-✅ Response received via key[2](...f82zL3RQ) (1873ms)
-<=<=<= Gemini: 3347 tokens
+📡 [gemini-2.0-flash] [3/15 req/min] via key[2](...f82zL3RQ)
+✅ [gemini-2.0-flash] response via key[2](...f82zL3RQ) (1873ms)
+<=<=<= [gemini-2.0-flash]: 3347 tokens
 🤖 Reply: "IUrsaButtonActionを実装するには..."
 ←←← Continue: stream sent (104 chars)
 ```
@@ -105,29 +144,41 @@ models:
 レート制限に達した時：
 
 ```
-⏳ Rate limit reached (15/15). Waiting for slot...
-📡 Calling Gemini API [1/15 req/min] via key[0](...H42CwulQ)
-✅ Response received ...
+⏳ Rate limit reached for key[0](...H42CwulQ) (15/15). Waiting for slot...
+📡 [gemini-2.0-flash] [1/15 req/min] via key[0](...H42CwulQ)
+✅ [gemini-2.0-flash] response via key[0](...H42CwulQ) (923ms)
 ```
 
 429 が返ってきた時（次のキーに自動切替）：
 
 ```
 ⚠️  429 on key[2](...) - switching to next key (1/5)
-📡 Calling Gemini API [3/15 req/min] via key[3](...4ULeurRg)
-✅ Response received ...
+📡 [gemini-2.0-flash] [3/15 req/min] via key[3](...4ULeurRg)
+✅ [gemini-2.0-flash] response via key[3](...4ULeurRg) (1102ms)
 ```
 
 ---
 
 ## レート制限について
 
-Gemini 3.5 Flash 無料枠のデフォルト制限は **15 req/min**。  
+Gemini Flash 無料枠のデフォルト制限は **15 req/min**。  
 `appsettings.json` の `MaxRequestsPerMinute` をモデルの実際の制限に合わせて設定する。
 
 キーを複数登録している場合、このプロキシ内のカウンターは**キーごと**に管理している。
 
-1 本のキーが 429 を返した場合は、待機せずに次のキーへ切り替えて再試行する。
+1 本のキーが 429 を返した場合は、待機せずに次のキーへ切り替えて再試行する。  
+全キーが 429 を返した場合は `500` を返す。
+
+---
+
+## エンドポイント
+
+| メソッド | パス                   | 説明                                   |
+| -------- | ---------------------- | -------------------------------------- |
+| `GET`    | `/health`              | サーバー死活確認。`{"status":"ok"}` を返す |
+| `GET`    | `/v1/models`           | 利用可能なモデル一覧（Continue 向け）  |
+| `POST`   | `/v1/chat/completions` | OpenAI 互換チャット（Continue メイン） |
+| `POST`   | `/chat`                | シンプルなチャット（後方互換用）       |
 
 ---
 
@@ -141,6 +192,9 @@ Gemini 3.5 Flash 無料枠のデフォルト制限は **15 req/min**。
 
 **Continue がエラーになる**  
 → サーバーが起動しているか確認。`curl http://localhost:8080/health` でレスポンスが返れば正常。
+
+**`--test` でキーが全滅 (DAILY_FREE_TIER)**  
+→ 無料枠の日次クォータを使い切っている。同じ Google アカウントのプロジェクト間で共有されることがあるため、翌日まで待つか別アカウントのキーを追加する。
 
 ---
 
