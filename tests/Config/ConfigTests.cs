@@ -3,7 +3,7 @@ using Xunit;
 
 namespace UrsaFreeAIProxy.Tests.Config;
 
-public class GeminiConfigTests
+public class ConfigTests
 {
     [Fact]
     public void Validate_WithValidConfig_DoesNotThrow()
@@ -59,6 +59,5 @@ public class GeminiConfigTests
         // Assert
         Assert.Equal("gemini-1.5-flash", config.Model);
         Assert.Equal(5, config.MaxRequestsPerMinute);
-        Assert.Equal(12000, config.DelayMilliseconds);
     }
 }

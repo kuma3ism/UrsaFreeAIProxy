@@ -7,7 +7,6 @@ public class GeminiConfig
 
     public string Model { get; set; } = "gemini-1.5-flash";
     public int MaxRequestsPerMinute { get; set; } = 5;
-    public int DelayMilliseconds { get; set; } = 12000;
 
     /// <summary>後方互換用: 単一キーとして取得</summary>
     public string? ApiKey => ApiKeys.FirstOrDefault();
