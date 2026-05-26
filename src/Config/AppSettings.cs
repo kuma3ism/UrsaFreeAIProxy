@@ -2,12 +2,12 @@ namespace UrsaFreeAIProxy.Config;
 
 public class AppSettings
 {
-    public GeminiSettings? Gemini { get; set; }
+    public AiSettings? Ai { get; set; }
     public ServerSettings? Server { get; set; }
     public LoggingSettings? Logging { get; set; }
 }
 
-public class GeminiSettings
+public class AiSettings
 {
     /// <summary>後方互換用。ApiKeysが空の場合にフォールバックとして使用される。</summary>
     public string? ApiKey { get; set; }
