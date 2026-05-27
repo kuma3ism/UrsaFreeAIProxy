@@ -1,38 +1,39 @@
 # UrsaFreeAIProxy
 
-Gemini の無料 API キーを複数登録して利用制限を分散するローカルプロキシ。  
-制限に達すると自動で待機してエラーを回避し、タスクを完了させる。  
-Continue（VS Code の AI コーディング拡張）からの接続を想定しています。
+A local proxy that distributes load across multiple free Gemini API keys, automatically handles rate limiting, and completes tasks without errors.
+Designed for use with Continue (VS Code AI coding extension).
 
 ---
 
-## これは何？
+## What is this?
 
-複数の無料APIキーを束ね、Continueからは一つのAIを扱ってるように振舞います
+Bundles multiple free API keys so that Continue sees them as a single AI endpoint.
 
 ```
-VS Code (Continue) → localhost:8080 → Gemini API (無料)
+VS Code (Continue) → localhost:8080 → Gemini API (free tier)
 ```
 
 ---
 
-## メリット
-- **複数APIキーのラウンドロビン** — 複数のAPIキーを順番に使用します
-- **レート制限を自動管理** — 制限に達したら自動で待機(15rpmが回復するまで60秒待機)
+## Benefits
+
+- **Round-robin across multiple keys** — Cycles through multiple API keys in order
+- **Automatic rate limit management** — Waits automatically when the limit is reached (waits up to 60s for the 15rpm window to recover)
+
 ---
 
-## セットアップ
+## Setup
 
-### 前提
+### Prerequisites
 
-- .NET 8.0 以上（Windows、Mac）
-- Gemini API キー（[Google AI Studio](https://aistudio.google.com) で無料取得）
+- .NET 8.0 or later (Windows / Mac)
+- Gemini API key(s) — get them for free at [Google AI Studio](https://aistudio.google.com)
 
-### 1. appsettings.json を編集
+### 1. Edit appsettings.json
 
-> ⚠️ **注意: appsettings.json はデフォルトで .gitignore に含まれていません。**  
-> API キーを含むこのファイルをリポジトリにコミットしないよう注意してください。  
-> 環境変数（後述）で代替するか、`.gitignore` に `appsettings.json` を追加することを推奨します。
+> ⚠️ **Warning: appsettings.json is not included in .gitignore by default.**  
+> Be careful not to commit this file to your repository as it contains API keys.  
+> Use environment variables (see below) as an alternative, or add `appsettings.json` to `.gitignore`.
 
 ```json
 {
@@ -50,21 +51,22 @@ VS Code (Continue) → localhost:8080 → Gemini API (無料)
 }
 ```
 
-キーは 1 本でも動く。複数登録するとラウンドロビンで分散する。
+A single key works fine. Multiple keys are distributed via round-robin.
 
-### 2. サーバーを起動
-Windowsの場合は管理者権限が必要です
+### 2. Start the server
+
+> On Windows, administrator privileges are required.
 
 ```bash
 dotnet run --project src/UrsaFreeAIProxy.csproj
 ```
 
-起動すると以下のような出力が表示される：
+On startup, you will see output like this:
 
 ```
 🚀 UrsaFreeAIProxy starting...
 ✅ Configuration loaded
-   Model: gemini-2.0-flash
+   Model: gemini-3.5-flash
    API Keys: 2 key(s) loaded
    key[0]: ...CwulQ
    key[1]: ...XUD4
@@ -72,31 +74,31 @@ dotnet run --project src/UrsaFreeAIProxy.csproj
    Effective Limit: 30 requests/minute
    Server Port: 8080
 🚀 Server started on http://localhost:8080
-📝 Model: gemini-2.0-flash
+📝 Model: gemini-3.5-flash
 ✅ Ready to serve CONTINUE agent requests
 ```
 
-#### オプション
+#### Options
 
-| オプション        | 内容                                            |
-| ----------------- | ----------------------------------------------- |
-| `--test`          | 各キーに 1 回ずつテストリクエストを送って疎通確認 |
-| `--debug`         | デバッグログを有効化（詳細なリクエスト情報を表示）|
-| `--port <番号>`   | ポートを指定して起動（例: `--port 9090`）        |
+| Option          | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
+| `--test`        | Sends one test request per key to verify connectivity          |
+| `--debug`       | Enables debug logging (shows detailed request information)     |
+| `--port <num>`  | Start on a specific port (e.g. `--port 9090`)                  |
 
 ```bash
-# 疎通確認
+# Verify connectivity
 dotnet run --project src/UrsaFreeAIProxy.csproj -- --test
 
-# デバッグモードで起動
+# Start in debug mode
 dotnet run --project src/UrsaFreeAIProxy.csproj -- --debug
 ```
 
-`--test` は各 API キーに 1 回ずつテストリクエストを送り、キーごとの成功 / 429 / 失敗と、`キー数 × MaxRequestsPerMinute` の見込み req/min を表示する。
+`--test` sends one test request to each API key and reports success / 429 / failure per key, along with the estimated req/min (`number of keys × MaxRequestsPerMinute`).
 
-### 4. Continue の設定
+### 3. Configure Continue
 
-Continue の設定ファイル（`config.yaml`）に追加：
+Add the following to your Continue config file (`config.yaml`):
 
 ```yaml
 models:
@@ -109,78 +111,78 @@ models:
 
 ---
 
-## ログの見方
+## Reading the logs
 
-通常時：
+Normal operation:
 
 ```
 →→→ Continue: POST /v1/chat/completions
-=>=>=> [gemini-2.0-flash]: 14 messages (stream=True)
-💬 User: "UrsaButtonのOnClickをIUrsaButtonActionに差し替えたい..."
-📡 [gemini-2.0-flash] [3/15 req/min] via key[2](...f82zL3RQ)
-✅ [gemini-2.0-flash] response via key[2](...f82zL3RQ) (1873ms)
-<=<=<= [gemini-2.0-flash]: 3347 tokens
-🤖 Reply: "IUrsaButtonActionを実装するには..."
+=>=>=> [gemini-3.5-flash]: 14 messages (stream=True)
+💬 User: "I want to replace UrsaButton's OnClick with IUrsaButtonAction..."
+📡 [gemini-3.5-flash] [3/15 req/min] via key[2](...f82zL3RQ)
+✅ [gemini-3.5-flash] response via key[2](...f82zL3RQ) (1873ms)
+<=<=<= [gemini-3.5-flash]: 3347 tokens
+🤖 Reply: "To implement IUrsaButtonAction..."
 ←←← Continue: stream sent (104 chars)
 ```
 
-レート制限に達した時：
+When rate limit is reached:
 
 ```
 ⏳ Rate limit reached for key[0](...H42CwulQ) (15/15). Waiting for slot...
-📡 [gemini-2.0-flash] [1/15 req/min] via key[0](...H42CwulQ)
-✅ [gemini-2.0-flash] response via key[0](...H42CwulQ) (923ms)
+📡 [gemini-3.5-flash] [1/15 req/min] via key[0](...H42CwulQ)
+✅ [gemini-3.5-flash] response via key[0](...H42CwulQ) (923ms)
 ```
 
-429 が返ってきた時（次のキーに自動切替）：
+When a 429 is returned (auto-switching to the next key):
 
 ```
 ⚠️  429 on key[2](...) - switching to next key (1/5)
-📡 [gemini-2.0-flash] [3/15 req/min] via key[3](...4ULeurRg)
-✅ [gemini-2.0-flash] response via key[3](...4ULeurRg) (1102ms)
+📡 [gemini-3.5-flash] [3/15 req/min] via key[3](...4ULeurRg)
+✅ [gemini-3.5-flash] response via key[3](...4ULeurRg) (1102ms)
 ```
 
 ---
 
-## レート制限について
+## Rate limiting
 
-Gemini Flash 無料枠のデフォルト制限は **15 req/min**。  
-`appsettings.json` の `MaxRequestsPerMinute` をモデルの実際の制限に合わせて設定する。
+The default free tier limit for Gemini Flash is **15 req/min**.  
+Set `MaxRequestsPerMinute` in `appsettings.json` to match the actual limit of the model you are using.
 
-キーを複数登録している場合、このプロキシ内のカウンターは**キーごと**に管理している。
+When multiple keys are registered, this proxy tracks the request count **per key** independently.
 
-1 本のキーが 429 を返した場合は、待機せずに次のキーへ切り替えて再試行する。  
-全キーが 429 を返した場合は `500` を返す。
-
----
-
-## エンドポイント
-
-| メソッド | パス                   | 説明                                   |
-| -------- | ---------------------- | -------------------------------------- |
-| `GET`    | `/health`              | サーバー死活確認。`{"status":"ok"}` を返す |
-| `GET`    | `/v1/models`           | 利用可能なモデル一覧（Continue 向け）  |
-| `POST`   | `/v1/chat/completions` | OpenAI 互換チャット（Continue メイン） |
-| `POST`   | `/chat`                | シンプルなチャット（後方互換用）       |
+If a key returns 429, the proxy immediately switches to the next key without waiting.  
+If all keys return 429, the proxy returns `500`.
 
 ---
 
-## トラブルシューティング
+## Endpoints
 
-**429 エラーが頻発する**  
-→ `MaxRequestsPerMinute` を実際の制限より 1〜2 低めに設定する。ローリングウィンドウの境界で弾かれることがある。
-
-**応答が遅い**  
-→ レート制限待機中の正常な動作。ログに `⏳ Waiting...` が出ていれば待機中。
-
-**Continue がエラーになる**  
-→ サーバーが起動しているか確認。`curl http://localhost:8080/health` でレスポンスが返れば正常。
-
-**`--test` でキーが全滅 (DAILY_FREE_TIER)**  
-→ 無料枠の日次クォータを使い切っている。同じ Google アカウントのプロジェクト間で共有されることがあるため、翌日まで待つか別アカウントのキーを追加する。
+| Method | Path                   | Description                                      |
+| ------ | ---------------------- | ------------------------------------------------ |
+| `GET`  | `/health`              | Health check. Returns `{"status":"ok"}`          |
+| `GET`  | `/v1/models`           | List available models (for Continue)             |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible chat endpoint (main)           |
+| `POST` | `/chat`                | Simple chat endpoint (legacy)                    |
 
 ---
 
-## ライセンス
+## Troubleshooting
+
+**Frequent 429 errors**  
+→ Set `MaxRequestsPerMinute` 1–2 lower than the actual limit. Requests near the rolling window boundary can still get rejected.
+
+**Slow responses**  
+→ Normal behavior when waiting for a rate limit slot. If you see `⏳ Waiting...` in the logs, the proxy is holding until a slot opens.
+
+**Continue shows an error**  
+→ Make sure the server is running. Run `curl http://localhost:8080/health` — if it responds, the server is up.
+
+**`--test` shows all keys failing (DAILY_FREE_TIER)**  
+→ The daily free tier quota has been exhausted. This quota is sometimes shared across projects under the same Google account. Wait until the next day or add keys from a different account.
+
+---
+
+## License
 
 MIT
