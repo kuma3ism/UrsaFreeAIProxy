@@ -1,4 +1,5 @@
 # UrsaFreeAIProxy
+Combine multiple free Gemini API keys into one powerful AI endpoint
 
 By registering multiple free API keys, requests are distributed across them in round-robin order. The more keys you add, the longer it takes to hit the rate limit — giving you more headroom for continuous use.
 
