@@ -4,6 +4,8 @@ By registering multiple free API keys, requests are distributed across them in r
 
 Designed for use with Continue (VS Code AI coding extension).
 
+> **Note: This proxy is designed specifically for the Gemini API. Other providers (OpenAI, Anthropic, etc.) are not supported.**
+
 ---
 
 ## What is this?
