@@ -18,10 +18,19 @@ VS Code (Continue) → localhost:8080 → Gemini API (free tier)
 
 ---
 
-## Benefits
+## Features
 
-- **Round-robin across multiple keys** — Cycles through multiple API keys in order
-- **Automatic rate limit management** — Waits automatically when the limit is reached (waits up to 60s for the 15rpm window to recover)
+### Round-robin key rotation
+
+Register multiple Gemini API keys obtained for free from [Google AI Studio](https://aistudio.google.com/api-keys). Each incoming request is handled by the next key in rotation. Adding more keys effectively raises the throughput ceiling — with 3 keys at 15 RPM each, you get up to 45 requests per minute in practice.
+
+### Smart rate limit management
+
+The Gemini free tier enforces a limit such as 15 requests per minute (15 RPM) per key. This proxy tracks usage per key automatically and inserts a wait when a key is about to hit its limit, so the caller never sees a rate limit error under normal conditions. If a 429 is returned anyway, the proxy immediately falls over to the next available key and retries without surfacing the error.
+
+### OpenAI-compatible endpoint
+
+The proxy starts on `localhost:8080` and exposes a `/v1/chat/completions` endpoint that speaks the OpenAI chat format. This means external tools like Continue can treat it as a standard OpenAI-style API — even though the underlying model is Gemini — with no special configuration required on the client side.
 
 ---
 
