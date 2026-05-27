@@ -175,7 +175,7 @@ public class ContinueIntegrationServer
 
         _logger.LogInfo($"=>=>=> [{_provider.GetModel()}]: {request.Messages.Length} messages (stream={request.Stream})");
 
-        // ユーザーの最後のメッセージ冒頭を表示
+        // Log the beginning of the user's last message
         var lastUserMsg = ExtractTextContent(request.Messages.LastOrDefault(m => m.Role == "user")?.Content);
         _logger.LogInfo($"💬 User: \"{Truncate(lastUserMsg)}\"");
 
@@ -189,7 +189,7 @@ public class ContinueIntegrationServer
 
             _logger.LogInfo($"<=<=<= [{_provider.GetModel()}]: {tokens} tokens");
 
-            // レスポンス冒頭を表示
+            // Log the beginning of the response
             _logger.LogInfo($"🤖 Reply: \"{Truncate(assistantText)}\"");
 
             var isStream = request.Stream == true;

@@ -4,11 +4,11 @@ using UrsaFreeAIProxy.Logging;
 using UrsaFreeAIProxy.Provider;
 using UrsaFreeAIProxy.Server;
 
-// コマンドライン引数チェック
+// Parse command-line arguments
 var isDebug = args.Contains("--debug");
 var isTest  = args.Contains("--test");
 
-// ロギングレベルを設定
+// Configure logging level
 var isDevelopment = isDebug || Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
 LoggerProvider.SetMinimumLogLevel(isDevelopment ? LogLevel.Debug : LogLevel.Information);
 var logger = LoggerProvider.GetLogger("Startup");
@@ -16,7 +16,7 @@ var logger = LoggerProvider.GetLogger("Startup");
 logger.LogInfo("🚀 UrsaFreeAIProxy starting...");
 if (isDebug) logger.LogInfo("🐛 Debug mode enabled");
 
-// 設定を読み込む
+// Load configuration
 var appSettings = ConfigurationManager.LoadFromFile("appsettings.json");
 if (isDevelopment)
 {
@@ -27,7 +27,7 @@ if (isDevelopment)
     }
 }
 
-// Gemini設定を作成
+// Build Gemini config
 var config = ConfigurationManager.ToGeminiConfig(appSettings);
 var serverPort = ConfigurationManager.GetServerPort(appSettings);
 var cliPort = GetPortFromArgs(args);
@@ -36,7 +36,7 @@ if (cliPort.HasValue)
     serverPort = cliPort.Value;
 }
 
-// APIキーの検証
+// Validate API keys
 if (config.ApiKeys == null || !config.ApiKeys.Any())
 {
     logger.LogError("❌ Error: GEMINI_API_KEY is not set. Please set it via environment variable or appsettings.json");
@@ -54,7 +54,7 @@ for (int i = 0; i < config.ApiKeys.Count; i++)
 logger.LogInfo($"   Rate Limit: {config.MaxRequestsPerMinute} requests/minute/key");
 logger.LogInfo($"   Effective Limit: {config.ApiKeys.Count * config.MaxRequestsPerMinute} requests/minute");
 
-// --test モード
+// --test mode
 if (isTest)
 {
     await RunRateLimitTestAsync(config, logger);
@@ -63,7 +63,7 @@ if (isTest)
 
 logger.LogInfo($"   Server Port: {serverPort}");
 
-// サーバーを起動
+// Start the server
 try
 {
     var server = new ContinueIntegrationServer(config, serverPort);
@@ -122,14 +122,14 @@ static async Task RunRateLimitTestAsync(GeminiConfig config, ILogger logger)
 
             logger.LogInfo($"   {keyLabel} ✅ {sw.ElapsedMilliseconds}ms → \"{response.Text.Trim()}\"");
             succeeded++;
-            keyReports.Add(new KeyReport(i, MaskKey(apiKey), "OK", config.MaxRequestsPerMinute, sw.ElapsedMilliseconds, "利用可能", response.Text.Trim()));
+            keyReports.Add(new KeyReport(i, MaskKey(apiKey), "OK", config.MaxRequestsPerMinute, sw.ElapsedMilliseconds, "Available", response.Text.Trim()));
         }
         catch (Exception ex)
         {
             sw.Stop();
             logger.LogError($"   {keyLabel} ❌ {sw.ElapsedMilliseconds}ms → {ex.Message}");
             failed++;
-            keyReports.Add(new KeyReport(i, MaskKey(apiKey), "ERROR", 0, sw.ElapsedMilliseconds, "通信または実行エラー", ex.Message));
+            keyReports.Add(new KeyReport(i, MaskKey(apiKey), "ERROR", 0, sw.ElapsedMilliseconds, "Communication or execution error", ex.Message));
         }
     }
 
@@ -192,7 +192,7 @@ static async Task<KeyTestResult> SendSingleKeyTestAsync(
 
     var result = await response.Content.ReadFromJsonAsync<GeminiResponse>();
     var text = result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? "(empty)";
-    return new KeyTestResult(true, (int)response.StatusCode, text, "OK", "利用可能", "");
+    return new KeyTestResult(true, (int)response.StatusCode, text, "OK", "Available", "");
 }
 
 static string MaskKey(string key)
@@ -216,7 +216,7 @@ static GeminiErrorInfo ParseGeminiError(string errorJson)
         using var doc = System.Text.Json.JsonDocument.Parse(errorJson);
         if (!doc.RootElement.TryGetProperty("error", out var error))
         {
-            return new GeminiErrorInfo("ERROR", "Gemini エラー本文を解析できません", Truncate(errorJson, 220));
+            return new GeminiErrorInfo("ERROR", "Failed to parse Gemini error body", Truncate(errorJson, 220));
         }
 
         var parts = new List<string>();
@@ -268,7 +268,7 @@ static GeminiErrorInfo ParseGeminiError(string errorJson)
     }
     catch (System.Text.Json.JsonException)
     {
-        return new GeminiErrorInfo("ERROR", "Gemini エラー本文を解析できません", Truncate(errorJson, 220));
+        return new GeminiErrorInfo("ERROR", "Failed to parse Gemini error body", Truncate(errorJson, 220));
     }
 }
 
@@ -287,7 +287,7 @@ static GeminiErrorInfo ClassifyGeminiError(
     {
         return new GeminiErrorInfo(
             "DAILY_FREE_TIER",
-            $"無料枠の日次 quota を使い切っています。今日はこのキーは使わない扱いでOKです。{retryNote}",
+            $"Daily free tier quota exhausted. This key can be treated as unusable for today.{retryNote}",
             detailText);
     }
 
@@ -295,7 +295,7 @@ static GeminiErrorInfo ClassifyGeminiError(
     {
         return new GeminiErrorInfo(
             "RPM_LIMIT",
-            $"分間レート制限です。少し待てば戻る可能性があります。{retryNote}",
+            $"Per-minute rate limit reached. May recover after a short wait.{retryNote}",
             detailText);
     }
 
@@ -304,13 +304,13 @@ static GeminiErrorInfo ClassifyGeminiError(
     {
         return new GeminiErrorInfo(
             "TOKEN_QUOTA",
-            $"トークン quota 側の制限です。短い入力にするか時間を置く必要があります。{retryNote}",
+            $"Token quota limit. Use shorter input or wait before retrying.{retryNote}",
             detailText);
     }
 
     return new GeminiErrorInfo(
         "QUOTA",
-        $"quota 制限です。詳細を確認してください。{retryNote}",
+        $"Quota limit reached. Please check the details.{retryNote}",
         detailText);
 }
 

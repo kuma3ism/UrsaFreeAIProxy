@@ -33,10 +33,10 @@ public class ConfigurationManager
     {
         var aiSettings = appSettings.Ai ?? new AiSettings();
 
-        // 有効なAPIキー一覧を取得（設定ファイル由来）
+        // Collect valid API keys from config file
         var apiKeys = aiSettings.GetEffectiveApiKeys();
 
-        // 環境変数 GEMINI_API_KEY が設定されていれば先頭に追加
+        // Prepend GEMINI_API_KEY environment variable if set
         var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
         if (!string.IsNullOrWhiteSpace(envKey) && !apiKeys.Contains(envKey))
             apiKeys.Insert(0, envKey);

@@ -5,7 +5,7 @@ using UrsaFreeAIProxy.RateLimit;
 
 namespace UrsaFreeAIProxy.Provider;
 
-/// <summary>OpenAIメッセージをAI APIに渡す際の中間モデル</summary>
+/// <summary>Intermediate model for passing OpenAI messages to the Gemini API</summary>
 public record GeminiChatMessage(string Role, string Content);
 
 public class GeminiProvider
@@ -16,7 +16,7 @@ public class GeminiProvider
     private readonly ILogger _logger;
     private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 
-    // ラウンドロビン用カウンター
+    // Round-robin counter
     private int _keyIndex = 0;
     private readonly object _keyLock = new();
 
@@ -32,11 +32,11 @@ public class GeminiProvider
         _logger.LogInfo($"Loaded {_config.ApiKeys.Count} API key(s)");
     }
 
-    /// <summary>APIキーの下8桁を返す（ログ表示用）</summary>
+    /// <summary>Returns the last 8 characters of an API key (for log display)</summary>
     private static string MaskKey(string key)
         => key.Length >= 8 ? $"...{key[^8..]}" : "****";
 
-    /// <summary>ラウンドロビンで次のAPIキーを取得する</summary>
+    /// <summary>Returns the next API key in round-robin order</summary>
     private (string key, int index) GetNextApiKey()
     {
         lock (_keyLock)
@@ -48,14 +48,14 @@ public class GeminiProvider
         }
     }
 
-    /// <summary>マルチターン会話を送信する</summary>
+    /// <summary>Sends a multi-turn conversation</summary>
     public async Task<GeminiResponse> SendMessagesAsync(
         IEnumerable<GeminiChatMessage> messages,
         CancellationToken cancellationToken = default)
     {
         var messageList = messages.ToList();
 
-        // systemロールはsystemInstructionに分離（API仕様）
+        // Separate system role messages into systemInstruction (per API spec)
         var systemMessages = messageList.Where(m => m.Role == "system").ToList();
         var chatMessages = messageList.Where(m => m.Role != "system").ToList();
 
@@ -86,7 +86,7 @@ public class GeminiProvider
         return await SendRequestAsync(request, cancellationToken);
     }
 
-    /// <summary>単一メッセージを送信する（/chatエンドポイント後方互換用）</summary>
+    /// <summary>Sends a single message (for /chat endpoint backward compatibility)</summary>
     public async Task<GeminiResponse> SendMessageAsync(string message, CancellationToken cancellationToken = default)
     {
         _logger.LogDebug($"Sending message: {message.Substring(0, Math.Min(50, message.Length))}...");
@@ -104,7 +104,7 @@ public class GeminiProvider
 
     private async Task<GeminiResponse> SendRequestAsync(object request, CancellationToken cancellationToken)
     {
-        // キーの数だけ試みる（全キー試してもダメなら諦める）
+        // Try each key in turn; give up if all keys fail
         var totalKeys = _config.ApiKeys.Count;
         for (int attempt = 1; attempt <= totalKeys; attempt++)
         {
