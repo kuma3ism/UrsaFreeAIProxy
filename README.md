@@ -3,19 +3,32 @@ Combine multiple free Gemini API keys into one powerful AI endpoint
 
 By registering multiple free API keys, requests are distributed across them in round-robin order. The more keys you add, the longer it takes to hit the rate limit — giving you more headroom for continuous use.
 
-Designed for use with Continue (VS Code AI coding extension).
-
 > **Note: This proxy is designed specifically for the Gemini API. Other providers (OpenAI, Anthropic, etc.) are not supported.**
 
 ---
 
 ## What is this?
 
-Bundles multiple free API keys so that Continue sees them as a single AI endpoint.
+Bundles multiple free Gemini API keys into a single OpenAI-compatible endpoint running on `localhost:8080`.
 
 ```
-VS Code (Continue) → localhost:8080 → Gemini API (free tier)
+Any OpenAI-compatible client → localhost:8080 → Gemini API (free tier)
 ```
+
+Works with any tool that supports a custom OpenAI API base URL — not just Continue.
+
+---
+
+## Compatible clients
+
+| Client | How to connect |
+| ------ | -------------- |
+| **Continue** (VS Code) | Set `provider: openai` and `apiBase: http://localhost:8080/v1` in `config.yaml` |
+| **Cursor** | Settings → Models → OpenAI-compatible → set base URL to `http://localhost:8080/v1` |
+| **Open WebUI** | Add a new OpenAI connection with base URL `http://localhost:8080/v1` |
+| **Obsidian Copilot plugin** | Set the API base to `http://localhost:8080/v1` |
+| **LangChain / LlamaIndex** | Pass `base_url="http://localhost:8080/v1"` to the OpenAI client |
+| **Any OpenAI SDK** | Set `base_url` (Python) or `baseURL` (Node.js) to `http://localhost:8080/v1` |
 
 ---
 
@@ -31,7 +44,7 @@ The Gemini free tier enforces a limit such as 15 requests per minute (15 RPM) pe
 
 ### OpenAI-compatible endpoint
 
-The proxy starts on `localhost:8080` and exposes a `/v1/chat/completions` endpoint that speaks the OpenAI chat format. This means external tools like Continue can treat it as a standard OpenAI-style API — even though the underlying model is Gemini — with no special configuration required on the client side.
+The proxy starts on `localhost:8080` and exposes a `/v1/chat/completions` endpoint that speaks the OpenAI chat format. This means any OpenAI-compatible client can use Gemini transparently, with no special configuration required on the client side.
 
 ---
 
@@ -109,7 +122,9 @@ dotnet run --project src/UrsaFreeAIProxy.csproj -- --debug
 
 `--test` sends one test request to each API key and reports success / 429 / failure per key, along with the estimated req/min (`number of keys × MaxRequestsPerMinute`).
 
-### 3. Configure Continue
+### 3. Configure your client
+
+#### Continue
 
 Add the following to your Continue config file (`config.yaml`):
 
