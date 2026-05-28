@@ -214,3 +214,5 @@ If all keys return 429, the proxy returns `500`.
 ## License
 
 MIT
+
+Copyright (c) 2026 kuma3ism
