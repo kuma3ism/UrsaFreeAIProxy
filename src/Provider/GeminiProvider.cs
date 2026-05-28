@@ -28,6 +28,8 @@ public class GeminiProvider
             .Select(_ => new RateLimiter(config.MaxRequestsPerMinute))
             .ToArray();
         _httpClient = new HttpClient();
+        // Set timeout to 5 minutes (300 seconds) to handle slow API responses
+        _httpClient.Timeout = TimeSpan.FromSeconds(300);
         _logger = LoggerProvider.GetLogger(nameof(GeminiProvider));
         _logger.LogInfo($"Loaded {_config.ApiKeys.Count} API key(s)");
     }
