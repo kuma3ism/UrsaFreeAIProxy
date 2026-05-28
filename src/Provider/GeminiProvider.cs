@@ -145,6 +145,32 @@ public class GeminiProvider
                 var result = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: cancellationToken);
                 return result ?? throw new InvalidOperationException("Failed to parse response");
             }
+            catch (OperationCanceledException ex) when (ex.InnerException is TimeoutException or IOException)
+            {
+                // Handle timeout or connection errors - try next key
+                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} ({ex.GetType().Name}) - switching to next key ({attempt}/{totalKeys})", ex);
+                if (attempt < totalKeys)
+                {
+                    continue;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"All API keys failed due to timeout/connection errors", ex);
+                }
+            }
+            catch (HttpRequestException ex) when (ex.InnerException is TimeoutException or IOException)
+            {
+                // Handle timeout wrapped in HttpRequestException - try next key
+                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} (HttpRequestException) - switching to next key ({attempt}/{totalKeys})", ex);
+                if (attempt < totalKeys)
+                {
+                    continue;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"All API keys failed due to timeout/connection errors", ex);
+                }
+            }
             catch (InvalidOperationException)
             {
                 throw;
