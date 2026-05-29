@@ -55,6 +55,33 @@ The proxy starts on `localhost:9090` and exposes a `/v1/chat/completions` endpoi
 - .NET 8.0 or later (Windows / Mac)
 - Gemini API key(s) — get them for free at [Google AI Studio](https://aistudio.google.com)
 
+#### Check if .NET is installed
+
+```bash
+dotnet --version
+```
+
+If the output is `8.0.x` or higher, you're good to go. If you see `command not found`, install .NET first.
+
+#### Install .NET (macOS)
+
+```bash
+# Install via Homebrew (recommended)
+brew install --cask dotnet
+```
+
+If Homebrew is not installed:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Alternatively, download the installer directly from [https://dotnet.microsoft.com/download](https://dotnet.microsoft.com/download).
+
+#### Install .NET (Windows)
+
+Download and run the installer from [https://dotnet.microsoft.com/download](https://dotnet.microsoft.com/download).
+
 > ⚠️ **Windows users: Run your terminal as Administrator**  
 > On Windows, please launch your terminal with administrator privileges before running the commands below.
 
