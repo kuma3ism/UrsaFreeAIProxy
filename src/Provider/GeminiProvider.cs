@@ -133,11 +133,17 @@ public class GeminiProvider
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
 
-                if ((int)response.StatusCode == 429)
-                {
-                    _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
-                    continue;
-                }
+				if ((int)response.StatusCode == 429)
+				{
+				    _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
+				    continue;
+				}
+
+				if ((int)response.StatusCode == 503)
+				{
+				    _logger.LogWarning($"⚠️  503 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
+				    continue;
+				}
 
                 response.EnsureSuccessStatusCode();
                 _logger.LogInfo($"✅ [{_config.Model}] response via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
