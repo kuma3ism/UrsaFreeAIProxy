@@ -13,8 +13,8 @@ var isDevelopment = isDebug || Environment.GetEnvironmentVariable("ASPNETCORE_EN
 LoggerProvider.SetMinimumLogLevel(isDevelopment ? LogLevel.Debug : LogLevel.Information);
 var logger = LoggerProvider.GetLogger("Startup");
 
-logger.LogInfo("🚀 UrsaFreeAIProxy starting...");
-if (isDebug) logger.LogInfo("🐛 Debug mode enabled");
+logger.LogInfo("Starting UrsaFreeAIProxy...");
+if (isDebug) logger.LogInfo("Debug mode enabled");
 
 // Load configuration
 var appSettings = ConfigurationManager.LoadFromFile("appsettings.json");
@@ -39,11 +39,11 @@ if (cliPort.HasValue)
 // Validate API keys
 if (config.ApiKeys == null || !config.ApiKeys.Any())
 {
-    logger.LogError("❌ Error: GEMINI_API_KEY is not set. Please set it via environment variable or appsettings.json");
+    logger.LogError("[ERROR] GEMINI_API_KEY is not set. Please set it via environment variable or appsettings.json");
     Environment.Exit(1);
 }
 
-logger.LogInfo($"✅ Configuration loaded");
+logger.LogInfo($"[OK] Configuration loaded");
 logger.LogInfo($"   Model: {config.Model}");
 logger.LogInfo($"   API Keys: {config.ApiKeys.Count} key(s) loaded");
 for (int i = 0; i < config.ApiKeys.Count; i++)
@@ -67,7 +67,7 @@ logger.LogInfo($"   Server Port: {serverPort}");
 try
 {
     var server = new ContinueIntegrationServer(config, serverPort);
-    logger.LogInfo($"📡 Starting HTTP server on http://localhost:{serverPort}");
+    logger.LogInfo($"Starting HTTP server on http://localhost:{serverPort}");
     await server.StartAsync();
 }
 catch (Exception ex)
@@ -79,7 +79,7 @@ catch (Exception ex)
 static async Task RunRateLimitTestAsync(GeminiConfig config, ILogger logger)
 {
     logger.LogInfo("");
-    logger.LogInfo("🧪 ===== API Key Check Test =====");
+    logger.LogInfo("===== API Key Check Test =====");
     logger.LogInfo($"   Model: {config.Model}");
     logger.LogInfo($"   Keys: {config.ApiKeys.Count}");
     logger.LogInfo($"   Limit per key: {config.MaxRequestsPerMinute} requests/minute");
@@ -107,7 +107,7 @@ static async Task RunRateLimitTestAsync(GeminiConfig config, ILogger logger)
             if (response.StatusCode == 429)
             {
                 rateLimited++;
-                logger.LogWarning($"   {keyLabel} ⚠️  {response.Reason} ({sw.ElapsedMilliseconds}ms) → {response.ErrorMessage}");
+                logger.LogWarning($"   {keyLabel} [WARN] {response.Reason} ({sw.ElapsedMilliseconds}ms) -> {response.ErrorMessage}");
                 keyReports.Add(new KeyReport(i, MaskKey(apiKey), response.Reason, 0, sw.ElapsedMilliseconds, response.Description, response.ErrorMessage));
                 continue;
             }
@@ -115,26 +115,26 @@ static async Task RunRateLimitTestAsync(GeminiConfig config, ILogger logger)
             if (!response.IsSuccess)
             {
                 failed++;
-                logger.LogError($"   {keyLabel} ❌ HTTP {response.StatusCode} ({sw.ElapsedMilliseconds}ms) → {response.ErrorMessage}");
+                logger.LogError($"   {keyLabel} [ERROR] HTTP {response.StatusCode} ({sw.ElapsedMilliseconds}ms) -> {response.ErrorMessage}");
                 keyReports.Add(new KeyReport(i, MaskKey(apiKey), $"HTTP {response.StatusCode}", 0, sw.ElapsedMilliseconds, response.Description, response.ErrorMessage));
                 continue;
             }
 
-            logger.LogInfo($"   {keyLabel} ✅ {sw.ElapsedMilliseconds}ms → \"{response.Text.Trim()}\"");
+            logger.LogInfo($"   {keyLabel} [OK] {sw.ElapsedMilliseconds}ms -> \"{response.Text.Trim()}\"");
             succeeded++;
             keyReports.Add(new KeyReport(i, MaskKey(apiKey), "OK", config.MaxRequestsPerMinute, sw.ElapsedMilliseconds, "Available", response.Text.Trim()));
         }
         catch (Exception ex)
         {
             sw.Stop();
-            logger.LogError($"   {keyLabel} ❌ {sw.ElapsedMilliseconds}ms → {ex.Message}");
+            logger.LogError($"   {keyLabel} [ERROR] {sw.ElapsedMilliseconds}ms -> {ex.Message}");
             failed++;
             keyReports.Add(new KeyReport(i, MaskKey(apiKey), "ERROR", 0, sw.ElapsedMilliseconds, "Communication or execution error", ex.Message));
         }
     }
 
     logger.LogInfo("");
-    logger.LogInfo($"🧪 ===== Result =====");
+    logger.LogInfo($"===== Result =====");
     logger.LogInfo($"   Per-key report:");
     foreach (var report in keyReports)
     {
@@ -145,17 +145,17 @@ static async Task RunRateLimitTestAsync(GeminiConfig config, ILogger logger)
         }
     }
     logger.LogInfo("");
-    logger.LogInfo($"   ✅ Succeeded : {succeeded}");
-    logger.LogInfo($"   ⚠️  429       : {rateLimited}");
-    logger.LogInfo($"   ❌ Failed    : {failed}");
+    logger.LogInfo($"   [OK] Succeeded : {succeeded}");
+    logger.LogInfo($"   [WARN] 429       : {rateLimited}");
+    logger.LogInfo($"   [ERROR] Failed    : {failed}");
     logger.LogInfo($"   Current usable capacity: {succeeded} × {config.MaxRequestsPerMinute} = {succeeded * config.MaxRequestsPerMinute} requests/minute");
     logger.LogInfo($"   Configured capacity    : {config.ApiKeys.Count} × {config.MaxRequestsPerMinute} = {config.ApiKeys.Count * config.MaxRequestsPerMinute} requests/minute");
     if (failed == 0 && rateLimited == 0)
-        logger.LogInfo($"   🎉 All keys are usable. Estimated capacity: {config.ApiKeys.Count * config.MaxRequestsPerMinute} requests/minute");
+        logger.LogInfo($"   [SUCCESS] All keys are usable. Estimated capacity: {config.ApiKeys.Count * config.MaxRequestsPerMinute} requests/minute");
     else if (keyReports.All(report => report.Status == "DAILY_FREE_TIER"))
-        logger.LogWarning("   ⚠️  Free Tier daily quota appears exhausted for all tested keys. Free projects under the same account may still share practical limits.");
+        logger.LogWarning("   [WARN] Free Tier daily quota appears exhausted for all tested keys. Free projects under the same account may still share practical limits.");
     else
-        logger.LogWarning("   ⚠️  Some keys are unavailable or currently rate limited.");
+        logger.LogWarning("   [WARN] Some keys are unavailable or currently rate limited.");
     logger.LogInfo("");
 }
 

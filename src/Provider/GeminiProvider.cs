@@ -131,7 +131,7 @@ public class GeminiProvider
             _logger.LogDebug($"Rate limit status for {keyLabel}: {currentRequests}/{_config.MaxRequestsPerMinute}");
             if (currentRequests >= _config.MaxRequestsPerMinute)
             {
-                _logger.LogInfo($"⏳ Rate limit reached for {keyLabel} ({currentRequests}/{_config.MaxRequestsPerMinute}). Waiting for slot...");
+                _logger.LogInfo($"[WAIT] Rate limit reached for {keyLabel} ({currentRequests}/{_config.MaxRequestsPerMinute}). Waiting for slot...");
             }
 
             await rateLimiter.WaitForSlotAsync(cancellationToken);
@@ -140,27 +140,27 @@ public class GeminiProvider
             try
             {
                 var reqNum = rateLimiter.GetRequestsInLastMinute();
-                _logger.LogInfo($"📡 [{_config.Model}] [{reqNum}/{_config.MaxRequestsPerMinute} req/min] via {keyLabel}");
+                _logger.LogInfo($"Proxy →→→ AiModel: [{_config.Model}] [{reqNum}/{_config.MaxRequestsPerMinute} req/min] via {keyLabel}");
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
 
                 if ((int)response.StatusCode == 429)
                 {
-                    _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempts}/{initialKeyCount})");
+                    _logger.LogInfo($"[WARN] 429 on {keyLabel} - switching to next key ({attempts}/{initialKeyCount})");
                     continue;
                 }
 
                 if ((int)response.StatusCode == 503)
                 {
-                    _logger.LogWarning($"⚠️  503 on {keyLabel} - switching to next key ({attempts}/{initialKeyCount})");
+                    _logger.LogWarning($"[WARN] 503 on {keyLabel} - switching to next key ({attempts}/{initialKeyCount})");
                     continue;
                 }
 
                 if ((int)response.StatusCode == 400)
                 {
                     // Treat 400 as a key-specific fatal error: remove this key from rotation
-                    _logger.LogWarning($"❌  400 on {keyLabel} - removing this key from rotation");
+                    _logger.LogWarning($"[ERROR] 400 on {keyLabel} - removing this key from rotation");
                     RemoveApiKeyAtIndex(keyIdx);
                     // adjust initialKeyCount so we don't loop forever
                     initialKeyCount = Math.Max(0, initialKeyCount - 1);
@@ -168,7 +168,7 @@ public class GeminiProvider
                 }
 
                 response.EnsureSuccessStatusCode();
-                _logger.LogInfo($"✅ [{_config.Model}] response via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
+                _logger.LogInfo($"Proxy ←←← AiModel: [{_config.Model}] response via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
 
                 var result = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: cancellationToken);
                 return result ?? throw new InvalidOperationException("Failed to parse response");
@@ -176,7 +176,7 @@ public class GeminiProvider
             catch (OperationCanceledException ex) when (ex.InnerException is TimeoutException or IOException)
             {
                 // Handle timeout or connection errors - try next key
-                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} ({ex.GetType().Name}) - switching to next key ({attempts}/{initialKeyCount})", ex);
+                _logger.LogWarning($"[WARN] Timeout/connection error on {keyLabel} ({ex.GetType().Name}) - switching to next key ({attempts}/{initialKeyCount})", ex);
                 if (attempts < initialKeyCount)
                 {
                     continue;
@@ -189,7 +189,7 @@ public class GeminiProvider
             catch (HttpRequestException ex) when (ex.InnerException is TimeoutException or IOException)
             {
                 // Handle timeout wrapped in HttpRequestException - try next key
-                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} (HttpRequestException) - switching to next key ({attempts}/{initialKeyCount})", ex);
+                _logger.LogWarning($"[WARN] Timeout/connection error on {keyLabel} (HttpRequestException) - switching to next key ({attempts}/{initialKeyCount})", ex);
                 if (attempts < initialKeyCount)
                 {
                     continue;

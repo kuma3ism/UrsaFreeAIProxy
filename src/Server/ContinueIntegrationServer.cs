@@ -93,12 +93,12 @@ public class ContinueIntegrationServer
         {
             if (method == "POST" && path == "/v1/chat/completions")
             {
-                _logger.LogInfo($"→→→ Continue: {method} {path}");
+                _logger.LogInfo($"Continue →→→ Proxy: {method} {path}");
                 await HandleChatCompletionsAsync(context);
             }
             else if (method == "POST" && path == "/chat")
             {
-                _logger.LogInfo($"→→→ Continue: {method} {path}");
+                _logger.LogInfo($"Continue →→→ Proxy: {method} {path}");
                 await HandleChatAsync(context);
             }
             else if (path == "/health")
@@ -109,7 +109,7 @@ public class ContinueIntegrationServer
             }
             else if (path == "/v1/models")
             {
-                _logger.LogDebug($"→→→ Continue: {method} {path}");
+                _logger.LogDebug($"Continue →→→ Proxy: {method} {path}");
                 context.Response.StatusCode = 200;
                 context.Response.ContentType = "application/json";
                 var response = new
@@ -173,11 +173,11 @@ public class ContinueIntegrationServer
             .Where(m => !string.IsNullOrWhiteSpace(m.Content))
             .ToArray();
 
-        _logger.LogInfo($"=>=>=> [{_provider.GetModel()}]: {request.Messages.Length} messages (stream={request.Stream})");
+        _logger.LogInfo($"Proxy →→→ AiModel: [{_provider.GetModel()}] {request.Messages.Length} messages (stream={request.Stream})");
 
         // Log the beginning of the user's last message
         var lastUserMsg = ExtractTextContent(request.Messages.LastOrDefault(m => m.Role == "user")?.Content);
-        _logger.LogInfo($"💬 User: \"{Truncate(lastUserMsg)}\"");
+        _logger.LogInfo($"[User] {Truncate(lastUserMsg)}");
 
         try
         {
@@ -187,10 +187,10 @@ public class ContinueIntegrationServer
             var assistantText = part?.Text ?? "No response";
             var tokens = geminiResponse.UsageMetadata?.TotalTokenCount ?? 0;
 
-            _logger.LogInfo($"<=<=<= [{_provider.GetModel()}]: {tokens} tokens");
+            _logger.LogInfo($"Proxy ←←← AiModel: [{_provider.GetModel()}] {tokens} tokens");
 
             // Log the beginning of the response
-            _logger.LogInfo($"🤖 Reply: \"{Truncate(assistantText)}\"");
+            _logger.LogInfo($"[Reply] {Truncate(assistantText)}");
 
             var isStream = request.Stream == true;
 
@@ -242,7 +242,7 @@ public class ContinueIntegrationServer
                 var buffer = System.Text.Encoding.UTF8.GetBytes(sseBody);
                 context.Response.ContentLength64 = buffer.Length;
                 await context.Response.OutputStream.WriteAsync(buffer);
-                _logger.LogInfo($"←←← Continue: stream sent ({assistantText.Length} chars)");
+                _logger.LogInfo($"Continue ←←← Proxy: stream sent ({assistantText.Length} chars)");
             }
             else
             {
@@ -272,7 +272,7 @@ public class ContinueIntegrationServer
                 context.Response.StatusCode = 200;
                 context.Response.ContentType = "application/json";
                 await WriteResponseAsync(context, response);
-                _logger.LogInfo($"←←← Continue: response sent ({assistantText.Length} chars)");
+                _logger.LogInfo($"Continue ←←← Proxy: response sent ({assistantText.Length} chars)");
             }
         }
         catch (Exception ex)
@@ -282,7 +282,7 @@ public class ContinueIntegrationServer
             {
                 error = new { message = $"Failed to get response: {ex.Message}", type = "server_error" }
             });
-            _logger.LogError($"←←← Continue: 500 error", ex);
+            _logger.LogError($"Continue ←←← Proxy: 500 error", ex);
         }
     }
 
@@ -299,14 +299,14 @@ public class ContinueIntegrationServer
             return;
         }
 
-        _logger.LogInfo($"=>=>=> [{_provider.GetModel()}]: {request.Message.Substring(0, Math.Min(30, request.Message.Length))}...");
+        _logger.LogInfo($"Proxy →→→ AiModel: [{_provider.GetModel()}] {request.Message.Substring(0, Math.Min(30, request.Message.Length))}...");
         var response = await _provider.SendMessageAsync(request.Message);
         var text = response.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? "No response";
 
         context.Response.StatusCode = 200;
         context.Response.ContentType = "application/json";
         await WriteResponseAsync(context, new { response = text, rateLimit = _provider.GetCurrentRateLimit() });
-        _logger.LogInfo($"←←← Continue: response sent ({text.Length} chars)");
+        _logger.LogInfo($"Continue ←←← Proxy: response sent ({text.Length} chars)");
     }
 
     private async Task WriteResponseAsync(HttpListenerContext context, object data)
