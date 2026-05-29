@@ -82,6 +82,32 @@ The proxy starts on `localhost:9090` and exposes a `/v1/chat/completions` endpoi
 
 A single key works fine. Multiple keys are distributed via round-robin.
 
+### 1a. (Optional) Use apikeys.txt instead
+
+As an alternative to editing `appsettings.json`, you can place your API keys in `apikeys.txt` — one key per line — in the same directory as `appsettings.json`.
+
+```
+AIzaSy...key1
+AIzaSy...key2
+AIzaSy...key3
+```
+
+On startup, the proxy reads `apikeys.txt` and merges its keys into memory. Keys already present in `appsettings.json` are deduplicated automatically.
+
+> ✅ **`apikeys.txt` is listed in `.gitignore` by default**, making it a safer place to store keys than `appsettings.json`.
+
+Lines starting with `#` and blank lines are ignored, so you can annotate your keys freely:
+
+```
+# Personal account
+AIzaSy...key1
+
+# Work account
+AIzaSy...key2
+```
+
+> ⚠️ Keys loaded from `apikeys.txt` exist **in memory only** — the file is never modified by the proxy.
+
 ### 2. Start the server
 
 ```bash
