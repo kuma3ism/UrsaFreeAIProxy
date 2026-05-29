@@ -7,7 +7,7 @@ public interface ILogger
     void LogInfo(string message);
     void LogError(string message, Exception? ex = null);
     void LogDebug(string message);
-    void LogWarning(string message);
+    void LogWarning(string message, Exception? ex = null);
 }
 
 public class ConsoleLogger : ILogger
@@ -37,9 +37,10 @@ public class ConsoleLogger : ILogger
         Log(LogLevel.Debug, "🔍", message);
     }
 
-    public void LogWarning(string message)
+    public void LogWarning(string message, Exception? ex = null)
     {
-        Log(LogLevel.Warning, "⚠️", message);
+        var fullMessage = ex != null ? $"{message}\n{ex}" : message;
+        Log(LogLevel.Warning, "⚠️", fullMessage);
     }
 
     private void Log(LogLevel level, string emoji, string message)

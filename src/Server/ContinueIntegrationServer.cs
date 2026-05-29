@@ -22,7 +22,7 @@ public class ContinueIntegrationServer
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
-    public ContinueIntegrationServer(GeminiConfig config, int port = 8080)
+    public ContinueIntegrationServer(GeminiConfig config, int port = 9090)
     {
         _provider = new GeminiProvider(config);
         _port = port;
@@ -32,7 +32,7 @@ public class ContinueIntegrationServer
     public async Task StartAsync()
     {
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://+:{_port}/");
+        _listener.Prefixes.Add($"http://localhost:{_port}/");
         _listener.Start();
         Console.WriteLine($"🚀 Server started on http://localhost:{_port}");
         Console.WriteLine($"📝 Model: {_provider.GetModel()}");

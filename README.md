@@ -9,10 +9,10 @@ By registering multiple free API keys, requests are distributed across them in r
 
 ## What is this?
 
-Bundles multiple free Gemini API keys into a single OpenAI-compatible endpoint running on `localhost:8080`.
+Bundles multiple free Gemini API keys into a single OpenAI-compatible endpoint running on `localhost:9090`.
 
 ```
-Any OpenAI-compatible client → localhost:8080 → Gemini API (free tier)
+Any OpenAI-compatible client → localhost:9090 → Gemini API (free tier)
 ```
 
 Works with any tool that supports a custom OpenAI API base URL — not just Continue.
@@ -23,12 +23,12 @@ Works with any tool that supports a custom OpenAI API base URL — not just Cont
 
 | Client | How to connect |
 | ------ | -------------- |
-| **Continue** (VS Code) | Set `provider: openai` and `apiBase: http://localhost:8080/v1` in `config.yaml` |
-| **Cursor** | Settings → Models → OpenAI-compatible → set base URL to `http://localhost:8080/v1` |
-| **Open WebUI** | Add a new OpenAI connection with base URL `http://localhost:8080/v1` |
-| **Obsidian Copilot plugin** | Set the API base to `http://localhost:8080/v1` |
-| **LangChain / LlamaIndex** | Pass `base_url="http://localhost:8080/v1"` to the OpenAI client |
-| **Any OpenAI SDK** | Set `base_url` (Python) or `baseURL` (Node.js) to `http://localhost:8080/v1` |
+| **Continue** (VS Code) | Set `provider: openai` and `apiBase: http://localhost:9090/v1` in `config.yaml` |
+| **Cursor** | Settings → Models → OpenAI-compatible → set base URL to `http://localhost:9090/v1` |
+| **Open WebUI** | Add a new OpenAI connection with base URL `http://localhost:9090/v1` |
+| **Obsidian Copilot plugin** | Set the API base to `http://localhost:9090/v1` |
+| **LangChain / LlamaIndex** | Pass `base_url="http://localhost:9090/v1"` to the OpenAI client |
+| **Any OpenAI SDK** | Set `base_url` (Python) or `baseURL` (Node.js) to `http://localhost:9090/v1` |
 
 ---
 
@@ -44,7 +44,7 @@ The Gemini free tier enforces a limit such as 15 requests per minute (15 RPM) pe
 
 ### OpenAI-compatible endpoint
 
-The proxy starts on `localhost:8080` and exposes a `/v1/chat/completions` endpoint that speaks the OpenAI chat format. This means any OpenAI-compatible client can use Gemini transparently, with no special configuration required on the client side.
+The proxy starts on `localhost:9090` and exposes a `/v1/chat/completions` endpoint that speaks the OpenAI chat format. This means any OpenAI-compatible client can use Gemini transparently, with no special configuration required on the client side.
 
 ---
 
@@ -72,7 +72,7 @@ The proxy starts on `localhost:8080` and exposes a `/v1/chat/completions` endpoi
     "MaxRequestsPerMinute": 15
   },
   "Server": {
-    "Port": 8080
+    "Port": 9090
   }
 }
 ```
@@ -80,8 +80,6 @@ The proxy starts on `localhost:8080` and exposes a `/v1/chat/completions` endpoi
 A single key works fine. Multiple keys are distributed via round-robin.
 
 ### 2. Start the server
-
-> On Windows, administrator privileges are required.
 
 ```bash
 dotnet run --project src/UrsaFreeAIProxy.csproj
@@ -98,8 +96,8 @@ On startup, you will see output like this:
    key[1]: ...XUD4
    Rate Limit: 15 requests/minute/key
    Effective Limit: 30 requests/minute
-   Server Port: 8080
-🚀 Server started on http://localhost:8080
+   Server Port: 9090
+🚀 Server started on http://localhost:9090
 📝 Model: gemini-3.5-flash
 ✅ Ready to serve CONTINUE agent requests
 ```
@@ -132,7 +130,7 @@ Add the following to your Continue config file (`config.yaml`):
 models:
   - name: Gemini Flash (Local)
     provider: openai
-    apiBase: http://localhost:8080/v1
+    apiBase: http://localhost:9090/v1
     apiKey: dummy
     model: dummy
 ```
@@ -204,7 +202,7 @@ If all keys return 429, the proxy returns `500`.
 → Normal behavior when waiting for a rate limit slot. If you see `⏳ Waiting...` in the logs, the proxy is holding until a slot opens.
 
 **Continue shows an error**  
-→ Make sure the server is running. Run `curl http://localhost:8080/health` — if it responds, the server is up.
+→ Make sure the server is running. Run `curl http://localhost:9090/health` — if it responds, the server is up.
 
 **`--test` shows all keys failing (DAILY_FREE_TIER)**  
 → The daily free tier quota has been exhausted. This quota is sometimes shared across projects under the same Google account. Wait until the next day or add keys from a different account.
