@@ -55,6 +55,9 @@ The proxy starts on `localhost:9090` and exposes a `/v1/chat/completions` endpoi
 - .NET 8.0 or later (Windows / Mac)
 - Gemini API key(s) — get them for free at [Google AI Studio](https://aistudio.google.com)
 
+> ⚠️ **Windows users: Run your terminal as Administrator**  
+> On Windows, please launch your terminal with administrator privileges before running the commands below.
+
 ### 1. Edit appsettings.json
 
 > ⚠️ **Warning: appsettings.json is not included in .gitignore by default.**  
