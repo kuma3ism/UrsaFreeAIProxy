@@ -13,53 +13,27 @@ public class ConfigurationManager
     {
         try
         {
+            AppSettings appSettings;
             if (!File.Exists(filePath))
             {
                 Logger.LogWarning($"Configuration file not found: {filePath}");
-                var created = new AppSettings();
-
-                // If apikeys.txt exists even when appsettings.json does not, merge and create appsettings.json
-                var txtPathWhenMissing = Path.Combine(Path.GetDirectoryName(filePath) ?? string.Empty, "apikeys.txt");
-                if (File.Exists(txtPathWhenMissing))
-                {
-                    var added = MergeApiKeysFromTxt(created, txtPathWhenMissing);
-                    try
-                    {
-                        var options = new JsonSerializerOptions { WriteIndented = true };
-                        File.WriteAllText(filePath, JsonSerializer.Serialize(created, options));
-                        Logger.LogInfo($"Created {filePath} and added {added} api key(s) from {txtPathWhenMissing}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError($"Failed to write created configuration: {ex.Message}", ex);
-                    }
-                }
-
-                return created;
+                appSettings = new AppSettings();
+            }
+            else
+            {
+                var json = File.ReadAllText(filePath);
+                appSettings = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                Logger.LogInfo($"Loaded configuration from {filePath}");
             }
 
-            var json = File.ReadAllText(filePath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json);
-            Logger.LogInfo($"Loaded configuration from {filePath}");
-            var appSettings = settings ?? new AppSettings();
-
-            // If apikeys.txt is present, merge its keys into the loaded settings (ignore duplicates).
+            // If apikeys.txt is present, merge its keys into memory (ignore duplicates).
             var txtPath = Path.Combine(Path.GetDirectoryName(filePath) ?? string.Empty, "apikeys.txt");
             if (File.Exists(txtPath))
             {
                 var added = MergeApiKeysFromTxt(appSettings, txtPath);
                 if (added > 0)
                 {
-                    try
-                    {
-                        var options = new JsonSerializerOptions { WriteIndented = true };
-                        File.WriteAllText(filePath, JsonSerializer.Serialize(appSettings, options));
-                        Logger.LogInfo($"Updated {filePath} with {added} api key(s) from {txtPath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.LogError($"Failed to update configuration: {ex.Message}", ex);
-                    }
+                    Logger.LogInfo($"Added {added} api key(s) from {txtPath} to memory");
                 }
             }
 
@@ -78,7 +52,7 @@ public class ConfigurationManager
         {
             var lines = File.ReadAllLines(txtPath)
                 .Select(l => l.Trim())
-                .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#"))
+                .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#") && !l.StartsWith("YOUR_GEMINI_API_KEY"))
                 .ToList();
 
             if (!lines.Any())
