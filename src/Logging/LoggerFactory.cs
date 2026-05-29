@@ -23,7 +23,7 @@ public class ConsoleLogger : ILogger
 
     public void LogInfo(string message)
     {
-        Log(LogLevel.Information, "ℹ️", message);
+        Log(LogLevel.Information, "", message);
     }
 
     public void LogError(string message, Exception? ex = null)
@@ -49,7 +49,8 @@ public class ConsoleLogger : ILogger
             return;
 
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-        var formattedMessage = $"[{timestamp}] {emoji} [{_name}] {message}";
+        var emojiPart = string.IsNullOrEmpty(emoji) ? "" : $"{emoji} ";
+        var formattedMessage = $"[{timestamp}] {emojiPart}{message}";
 
         var originalColor = Console.ForegroundColor;
         Console.ForegroundColor = level switch
