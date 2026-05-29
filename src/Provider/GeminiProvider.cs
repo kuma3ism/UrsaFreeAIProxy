@@ -11,7 +11,7 @@ public record GeminiChatMessage(string Role, string Content);
 public class GeminiProvider
 {
     private readonly GeminiConfig _config;
-    private readonly RateLimiter[] _rateLimiters;
+    private RateLimiter[] _rateLimiters;
     private readonly HttpClient _httpClient;
     private readonly ILogger _logger;
     private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -43,6 +43,9 @@ public class GeminiProvider
     {
         lock (_keyLock)
         {
+            if (_config.ApiKeys == null || _config.ApiKeys.Count == 0)
+                throw new InvalidOperationException("No API keys available");
+
             var index = _keyIndex % _config.ApiKeys.Count;
             var key = _config.ApiKeys[index];
             _keyIndex++;
@@ -106,11 +109,20 @@ public class GeminiProvider
 
     private async Task<GeminiResponse> SendRequestAsync(object request, CancellationToken cancellationToken)
     {
-        // Try each key in turn; give up if all keys fail
-        var totalKeys = _config.ApiKeys.Count;
-        for (int attempt = 1; attempt <= totalKeys; attempt++)
+        // Try each key in turn; give up if all keys fail. If a key returns 400, remove it from rotation.
+        var initialKeyCount = _config.ApiKeys.Count;
+        var attempts = 0;
+
+        while (_config.ApiKeys.Count > 0 && attempts < initialKeyCount)
         {
+            attempts++;
             var (apiKey, keyIdx) = GetNextApiKey();
+            // If concurrency removed the key, retry
+            if (keyIdx >= _rateLimiters.Length)
+            {
+                continue;
+            }
+
             var rateLimiter = _rateLimiters[keyIdx];
             var currentRequests = rateLimiter.GetRequestsInLastMinute();
             var keyLabel = $"key[{keyIdx}]({MaskKey(apiKey)})";
@@ -133,17 +145,27 @@ public class GeminiProvider
                 var response = await _httpClient.PostAsJsonAsync(url, request, cancellationToken);
                 stopwatch.Stop();
 
-				if ((int)response.StatusCode == 429)
-				{
-				    _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
-				    continue;
-				}
+                if ((int)response.StatusCode == 429)
+                {
+                    _logger.LogInfo($"⚠️  429 on {keyLabel} - switching to next key ({attempts}/{initialKeyCount})");
+                    continue;
+                }
 
-				if ((int)response.StatusCode == 503)
-				{
-				    _logger.LogWarning($"⚠️  503 on {keyLabel} - switching to next key ({attempt}/{totalKeys})");
-				    continue;
-				}
+                if ((int)response.StatusCode == 503)
+                {
+                    _logger.LogWarning($"⚠️  503 on {keyLabel} - switching to next key ({attempts}/{initialKeyCount})");
+                    continue;
+                }
+
+                if ((int)response.StatusCode == 400)
+                {
+                    // Treat 400 as a key-specific fatal error: remove this key from rotation
+                    _logger.LogWarning($"❌  400 on {keyLabel} - removing this key from rotation");
+                    RemoveApiKeyAtIndex(keyIdx);
+                    // adjust initialKeyCount so we don't loop forever
+                    initialKeyCount = Math.Max(0, initialKeyCount - 1);
+                    continue;
+                }
 
                 response.EnsureSuccessStatusCode();
                 _logger.LogInfo($"✅ [{_config.Model}] response via {keyLabel} ({stopwatch.ElapsedMilliseconds}ms)");
@@ -154,8 +176,8 @@ public class GeminiProvider
             catch (OperationCanceledException ex) when (ex.InnerException is TimeoutException or IOException)
             {
                 // Handle timeout or connection errors - try next key
-                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} ({ex.GetType().Name}) - switching to next key ({attempt}/{totalKeys})", ex);
-                if (attempt < totalKeys)
+                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} ({ex.GetType().Name}) - switching to next key ({attempts}/{initialKeyCount})", ex);
+                if (attempts < initialKeyCount)
                 {
                     continue;
                 }
@@ -167,8 +189,8 @@ public class GeminiProvider
             catch (HttpRequestException ex) when (ex.InnerException is TimeoutException or IOException)
             {
                 // Handle timeout wrapped in HttpRequestException - try next key
-                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} (HttpRequestException) - switching to next key ({attempt}/{totalKeys})", ex);
-                if (attempt < totalKeys)
+                _logger.LogWarning($"⏱️  Timeout/connection error on {keyLabel} (HttpRequestException) - switching to next key ({attempts}/{initialKeyCount})", ex);
+                if (attempts < initialKeyCount)
                 {
                     continue;
                 }
@@ -188,8 +210,37 @@ public class GeminiProvider
             }
         }
 
-        _logger.LogError("All API keys exhausted (all returned 429). Please add more keys or wait.", null);
-        throw new InvalidOperationException("All API keys are rate limited. Please try again later.");
+        _logger.LogError("All API keys exhausted or removed. Please add more keys or wait.", null);
+        throw new InvalidOperationException("All API keys are unavailable. Please try again later.");
+    }
+
+    private void RemoveApiKeyAtIndex(int index)
+    {
+        lock (_keyLock)
+        {
+            if (index < 0 || index >= _config.ApiKeys.Count)
+                return;
+
+            var removedKey = _config.ApiKeys[index];
+            _config.ApiKeys.RemoveAt(index);
+
+            var newLimiters = new List<RateLimiter>();
+            for (int i = 0; i < _rateLimiters.Length; i++)
+            {
+                if (i == index) continue;
+                newLimiters.Add(_rateLimiters[i]);
+            }
+
+            _rateLimiters = newLimiters.ToArray();
+
+            // Ensure _keyIndex stays within bounds
+            if (_config.ApiKeys.Count > 0)
+                _keyIndex = _keyIndex % _config.ApiKeys.Count;
+            else
+                _keyIndex = 0;
+
+            _logger.LogInfo($"Removed API key {MaskKey(removedKey)} from rotation. Remaining keys: {_config.ApiKeys.Count}");
+        }
     }
 
     public int GetCurrentRateLimit() => _rateLimiters.Sum(limiter => limiter.GetRequestsInLastMinute());

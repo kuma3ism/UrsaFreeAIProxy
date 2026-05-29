@@ -42,3 +42,4 @@ node_modules/
 *.swo
 *~
 .DS_Store
+apikeys.txt
